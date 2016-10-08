@@ -1,8 +1,9 @@
 # VerifiedFormally
 Project for CSEEE6863_001_2016_3 - FORMAL VERIF HW SW SYSTEMS
 
-using ocaml .opam/4.03.0+fp+flambda/bin/ocaml
+using ocaml .opam/4.02.3/bin/ocaml
 
-opam switch 4.03.0+fp+flambda
+
+opam switch 4.02.3
 
 stop uses llvm.3.8
