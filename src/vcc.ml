@@ -2,8 +2,13 @@ module F = Frontc
 module C = Cil
 module O = Vccoptions
 module E = Errormsg
+open Core.Std
 
-
+let test1 (f:C.file) : unit =
+  print_string "hello";
+  List.iter ~f:(fun g -> match g with
+  | C.GFun(fd,loc) -> C.dumpGlobal C.defaultCilPrinter stdout (C.GFun(fd,loc));
+  | _ -> ()) f.globals
 
 
 let parseOneFile (fname: string) : C.file =
@@ -25,9 +30,8 @@ let outputFile (f : C.file) : unit =
 
 let processOneFile (cil: C.file) : unit =
   outputFile cil
-;;
 
-let main () =
+let () =
 
   C.print_CIL_Input := true;
 
@@ -47,26 +51,20 @@ let main () =
   Cabs2cil.doCollapseCallCast := true;
 
   let usageMsg = "Usage: vcc [options] source-files" in
-  Arg.parse (O.align ()) Ciloptions.recordFile usageMsg;
-
-  Ciloptions.fileNames := List.rev !Ciloptions.fileNames;
-  let files = List.map parseOneFile !Ciloptions.fileNames in
+  Core.Caml.Arg.parse (O.align ()) Ciloptions.recordFile usageMsg;
+  Ciloptions.fileNames := Core.Caml.List.rev !Ciloptions.fileNames;
+  let files = List.map !Ciloptions.fileNames parseOneFile  in
   let one =
     match files with
     | [] -> E.s (E.error "No file names provided")
     | [o] -> o
     | _ -> Mergecil.merge files "stdout"
   in
+   test1 one 
+   
+  (*tut1 one*)
 
-  processOneFile one
 ;;
 
 
-begin
-  try
-    main ()
-  with
-  | F.CabsOnly -> ()
-  | E.Error -> ()
-end;
-exit (if !E.hadErrors then 1 else 0)
+

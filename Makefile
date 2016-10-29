@@ -6,11 +6,11 @@
 # See http://caml.inria.fr/pub/docs/manual-ocaml/comp.html for suppressed errors
 # 44 & 45 In particular suppressed -- no errors, constantly filled up warning reports
 
-#no core
 
 
+#no core at the moment will add
 vcc:
-	ocamlbuild -use-ocamlfind -pkgs cil \
+	corebuild -use-ocamlfind -pkgs cil \
 		-cflags -w,+a-4-44-45 -I src/ vcc.native
 
 # "$ make clean" removes all generated files & test output files

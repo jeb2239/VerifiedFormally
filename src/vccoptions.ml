@@ -1,6 +1,6 @@
 module C = Cil
 
-open Printf
+open Core.Std
 open Vccutil
 
 
@@ -21,7 +21,7 @@ let enable_tut : bool ref array = Array.init num_tuts (fun i -> ref false)
 let prover : string ref = ref "Alt-Ergo"
 let prover_version : string ref = ref "0.94"
 let tut13out : string ref = ref "callgraph.dot"
-
+let sargs (f : 'b -> 'a -> 'c) (x : 'a) (y : 'b) : 'c = f y x
 let options_ref = ref []
 
 let align () =
@@ -29,10 +29,10 @@ let align () =
 
   let left = try
       options
-      |> List.map fst3
-      |> List.map String.length
-      |> List.sort (sargs compare)
-      |> List.hd
+      |> List.map ~f:fst3
+      |> List.map ~f:String.length
+      |> List.sort ~cmp:compare_int
+      |> List.hd_exn
     with Not_found -> 0
   in
 
@@ -44,11 +44,13 @@ let align () =
     if String.length str <= width then str else
 
     let break, skip =
-      try let break = String.rindex_from str width ' ' in
+      try let break = String.rindex_from_exn str width ' ' in
         try String.index (String.sub str 0 break) '\n', 1
-        with Not_found -> break, 1
-      with Not_found -> width, 0
+        with Not_found -> Some(break), 1
+      with Not_found -> Some(width), 0
     in
+    let break  = match break with Some(a) -> a | _ -> raise E.Error() in
+    (*let skip =match skip with Some(b) -> b | _ raise E.error() in*)
 
     let lstr, rstr =
       String.sub str 0 break,
@@ -57,9 +59,9 @@ let align () =
     lstr ^ "\n" ^ String.make left ' ' ^ wrap rstr
   in
 
-  List.map (fun (arg, action, str) ->
+  List.map ~f:(fun (arg, action, str) ->
     if arg = "" then arg, action, "\n" ^ str ^ "\n"
-    else let pre = String.make (left - String.length arg - 3) ' ' in
+    else let pre = String.make (abs (left - String.length arg - 3)) ' ' in (*this may bite me in the butt later but it works*)
     arg, action, pre ^ wrap str)
   options
 
@@ -102,7 +104,7 @@ let options = tut_options @ [
    "--envmachine",
    Arg.Unit (fun _ ->
      try
-       let machineModel = Sys.getenv "CIL_MACHINE" in
+       let machineModel = Sys.getenv_exn "CIL_MACHINE" in
        Cil.envMachine := Some (Machdepenv.modelParse machineModel);
      with
        Not_found ->
