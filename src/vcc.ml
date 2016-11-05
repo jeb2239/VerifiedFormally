@@ -1,68 +1,85 @@
-module F = Frontc
+(*module F = Frontc
 module C = Cil
 module O = Vccoptions
 module E = Errormsg
+module P = Pretty*)
 open Core.Std
 
-let test1 (f:C.file) : unit =
+let test1 (f:Cil.file) : unit =
   print_string "hello";
   List.iter ~f:(fun g -> match g with
-  | C.GFun(fd,loc) -> C.dumpGlobal C.defaultCilPrinter stdout (C.GFun(fd,loc));
-  | _ -> ()) f.globals
+      | Cil.GFun(fd,loc) -> Cil.dumpGlobal Cil.defaultCilPrinter stdout (Cil.GFun(fd,loc));
+      | _ -> ()) f.globals
 
 
-let parseOneFile (fname: string) : C.file =
-  let cabs, cil = F.parse_with_cabs fname () in
+let rec findFunction (gl : Cil.global list) (fname : string) : Cil.fundec =
+  match gl with
+  | [] -> raise(Failure "Function not found")
+  | Cil.GFun(fd,_) :: _ when fd.svar.vname = fname -> fd
+  | _ :: rst -> findFunction rst fname
+
+class assignRmVisitor(vname:string)=object(self)
+  inherit Cil.nopCilVisitor
+  method vinst(i:Cil.instr)=
+    match i with 
+    |Cil.Set((Cil.Var vi,Cil.NoOffset),_,loc) when vi.vname = vname && vi.vglob -> 
+      Errormsg.log "%a : Assignment Deleted %a\n" Cil.d_loc loc Cil.d_instr i;
+      Cil.ChangeTo []
+    |_ -> Cil.SkipChildren
+end
+
+let parseOneFile (fname: string) : Cil.file =
+  let cabs, cil = Frontc.parse_with_cabs fname () in
   Rmtmps.removeUnusedTemps cil;
   cil
 
-let outputFile (f : C.file) : unit =
-  if !O.outFile <> "" then
+let outputFile (f : Cil.file) : unit =
+  if !Vccoptions.outFile <> "" then
     try
-      let c = open_out !O.outFile in
+      let c = open_out !Vccoptions.outFile in
 
-      C.print_CIL_Input := false;
+      Cil.print_CIL_Input := false;
       Stats.time "printCIL"
-        (C.dumpFile (!C.printerForMaincil) c !O.outFile) f;
+        (Cil.dumpFile (!Cil.printerForMaincil) c !Vccoptions.outFile) f;
       close_out c
     with _ ->
-      E.s (E.error "Couldn't open file %s" !O.outFile)
+      Errormsg.s (Errormsg.error "Couldn't open file %s" !Vccoptions.outFile)
 
-let processOneFile (cil: C.file) : unit =
+let processOneFile (cil: Cil.file) : unit =
   outputFile cil
 
 let () =
 
-  C.print_CIL_Input := true;
+  Cil.print_CIL_Input := true;
 
 
-  C.insertImplicitCasts := false;
+  Cil.insertImplicitCasts := false;
 
 
-  C.lineLength := 100000;
+  Cil.lineLength := 100000;
 
 
-  C.warnTruncate := false;
+  Cil.warnTruncate := false;
 
 
-  E.colorFlag := true;
+  Errormsg.colorFlag := true;
 
 
   Cabs2cil.doCollapseCallCast := true;
 
   let usageMsg = "Usage: vcc [options] source-files" in
-  Core.Caml.Arg.parse (O.align ()) Ciloptions.recordFile usageMsg;
-  Ciloptions.fileNames := Core.Caml.List.rev !Ciloptions.fileNames;
+  
+  Ciloptions.fileNames :=["example.c.p"];
   let files = List.map !Ciloptions.fileNames parseOneFile  in
   let one =
     match files with
-    | [] -> E.s (E.error "No file names provided")
+    | [] -> Errormsg.s (Errormsg.error "No file names provided")
     | [o] -> o
     | _ -> Mergecil.merge files "stdout"
   in
-   test1 one 
-   
-  (*tut1 one*)
+  test1 one 
+
+(*tut1 one*)
 
 ;;
 

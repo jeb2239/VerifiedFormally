@@ -22,10 +22,42 @@ let prover : string ref = ref "Alt-Ergo"
 let prover_version : string ref = ref "0.94"
 let tut13out : string ref = ref "callgraph.dot"
 let sargs (f : 'b -> 'a -> 'c) (x : 'a) (y : 'b) : 'c = f y x
-let options_ref = ref []
+(*let options_ref = ref []*)
 
-let align () =
-  let options = !options_ref in
+let options = [
+  ("--prover",
+   Arg.Set_string prover,
+   "The prover that Why3 should use in Tut11 [default: Alt-Ergo]");
+  ("--prover-version",
+   Arg.Set_string prover_version,
+   "The version for the prover that Why3 should use in Tut11 [default: 0.94]");
+  ("--tut13-out",
+   Arg.Set_string tut13out,
+   "The output dot file for tut13");
+  "", Arg.Unit (fun () -> ()), "General:";
+  "--out", Arg.Set_string outFile, "Set the name of the output file";
+  "--home", Arg.Set_string home, "Set the name of ciltut's home directory";
+  "--verbose", Arg.Set verbose,
+    "Enable verbose output";
+  "--stats", Arg.Set stats,
+    "Output optimizer execution time stats";
+  "--merge", Arg.Set merge,
+    "Operate in CIL merger mode";
+   "--envmachine",
+   Arg.Unit (fun _ ->
+     try
+       let machineModel = Sys.getenv_exn "CIL_MACHINE" in
+       Cil.envMachine := Some (Machdepenv.modelParse machineModel);
+     with
+       Not_found ->
+	 ignore (Errormsg.error "CIL_MACHINE environment variable is not set")
+     | Failure msg ->
+	 ignore (Errormsg.error "CIL_MACHINE machine model is invalid: %s" msg)),
+   "Use machine model specified in CIL_MACHINE environment variable";
+]
+
+let align options =
+  let options = options in
 
   let left = try
       options
@@ -65,53 +97,8 @@ let align () =
     arg, action, pre ^ wrap str)
   options
 
-let tut_options =
-  Array.to_list (
-  Array.mapi (fun i br ->
-    ("--enable-tut"^(string_of_int i),
-     Arg.Set br,
-     "Enable the code in tut"^(string_of_int i)^".ml")
-  ) enable_tut)
-
-let options = tut_options @ [
-
-
-  ("--prover",
-   Arg.Set_string prover,
-   "The prover that Why3 should use in Tut11 [default: Alt-Ergo]");
-  ("--prover-version",
-   Arg.Set_string prover_version,
-   "The version for the prover that Why3 should use in Tut11 [default: 0.94]");
 
 
 
-  ("--tut13-out",
-   Arg.Set_string tut13out,
-   "The output dot file for tut13");
 
-
-  "", Arg.Unit (fun () -> ()), "General:";
-  "--out", Arg.Set_string outFile, "Set the name of the output file";
-  "--home", Arg.Set_string home, "Set the name of ciltut's home directory";
-  "--verbose", Arg.Set verbose,
-    "Enable verbose output";
-  "--stats", Arg.Set stats,
-    "Output optimizer execution time stats";
-  "--help", Arg.Unit (fun () -> Arg.usage (align ()) ""; exit 0),
-    "Show this help message";
-  "--merge", Arg.Set merge,
-    "Operate in CIL merger mode";
-   "--envmachine",
-   Arg.Unit (fun _ ->
-     try
-       let machineModel = Sys.getenv_exn "CIL_MACHINE" in
-       Cil.envMachine := Some (Machdepenv.modelParse machineModel);
-     with
-       Not_found ->
-	 ignore (Errormsg.error "CIL_MACHINE environment variable is not set")
-     | Failure msg ->
-	 ignore (Errormsg.error "CIL_MACHINE machine model is invalid: %s" msg)),
-   "Use machine model specified in CIL_MACHINE environment variable";
-]
-
-let _ = options_ref := options;;
+(*let _ = options_ref := options;;*)
