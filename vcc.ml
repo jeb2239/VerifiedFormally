@@ -4,9 +4,22 @@ open Cil
 open Log
 
 let do_compile infile_path outfile_path =
-  ignore infile_path;
   ignore outfile_path;
-  Log.debug "entering do_compile"
+  Log.debug "entering do_compile";
+  let c_raw = match infile_path with
+    | None -> In_channel.input_all In_channel.stdin
+    | Some(path) -> In_channel.read_all path
+  in
+  (* Preprocess the file with clang *)
+  let (from_clang, to_clang) = Unix.open_process "clang - -std=c11 -E" in
+  Out_channel.output_string to_clang c_raw;
+  Out_channel.close to_clang; (* clang waits for end of file *)
+  let c_preprocessed = In_channel.input_all from_clang in
+  if Unix.close_process (from_clang, to_clang) <> Result.Ok( () ) then
+    failwith "Preprocessing failed"
+  else ();
+  print_endline c_preprocessed;
+  ()
 
 let command =
   Command.basic
