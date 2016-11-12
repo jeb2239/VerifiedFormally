@@ -6,7 +6,7 @@ open Vccutil
 
 let size_t: string ref = ref ""
 let outFile : string ref = ref ""
-let debug : bool ref = ref false
+(*let debug : bool ref = ref false
 let verbose : bool ref = ref false
 let stats: bool ref = ref false
 let parseFile : string ref = ref ""
@@ -21,10 +21,10 @@ let enable_tut : bool ref array = Array.init num_tuts (fun i -> ref false)
 let prover : string ref = ref "Alt-Ergo"
 let prover_version : string ref = ref "0.94"
 let tut13out : string ref = ref "callgraph.dot"
-let sargs (f : 'b -> 'a -> 'c) (x : 'a) (y : 'b) : 'c = f y x
+let sargs (f : 'b -> 'a -> 'c) (x : 'a) (y : 'b) : 'c = f y x*)
 (*let options_ref = ref []*)
 
-let options = [
+(*let options = [
   ("--prover",
    Arg.Set_string prover,
    "The prover that Why3 should use in Tut11 [default: Alt-Ergo]");
@@ -95,7 +95,7 @@ let align options =
     if arg = "" then arg, action, "\n" ^ str ^ "\n"
     else let pre = String.make (abs (left - String.length arg - 3)) ' ' in (*this may bite me in the butt later but it works*)
     arg, action, pre ^ wrap str)
-  options
+  options*)
 
 
 

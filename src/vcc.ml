@@ -1,8 +1,3 @@
-(*module F = Frontc
-module C = Cil
-module O = Vccoptions
-module E = Errormsg
-module P = Pretty*)
 open Core.Std
 
 let test1 (f:Cil.file) : unit =
@@ -10,7 +5,6 @@ let test1 (f:Cil.file) : unit =
   List.iter ~f:(fun g -> match g with
       | Cil.GFun(fd,loc) -> Cil.dumpGlobal Cil.defaultCilPrinter stdout (Cil.GFun(fd,loc));
       | _ -> ()) f.globals
-
 
 let rec findFunction (gl : Cil.global list) (fname : string) : Cil.fundec =
   match gl with
@@ -49,26 +43,14 @@ let processOneFile (cil: Cil.file) : unit =
   outputFile cil
 
 let () =
-
-  Cil.print_CIL_Input := true;
-
-
-  Cil.insertImplicitCasts := false;
-
-
-  Cil.lineLength := 100000;
-
-
-  Cil.warnTruncate := false;
-
-
-  Errormsg.colorFlag := true;
-
-
-  Cabs2cil.doCollapseCallCast := true;
-
-  let usageMsg = "Usage: vcc [options] source-files" in
   
+  (*Unix.open_process "clang";*)  
+  Cil.print_CIL_Input := true;
+  Cil.insertImplicitCasts := false;
+  Cil.lineLength := 100000;
+  Cil.warnTruncate := false;
+  Errormsg.colorFlag := true;
+  Cabs2cil.doCollapseCallCast := true;
   Ciloptions.fileNames :=["example.c.p"];
   let files = List.map !Ciloptions.fileNames parseOneFile  in
   let one =
@@ -77,9 +59,7 @@ let () =
     | [o] -> o
     | _ -> Mergecil.merge files "stdout"
   in
-  test1 one 
-
-(*tut1 one*)
+  test1 one
 
 ;;
 
