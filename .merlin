@@ -1,4 +1,4 @@
 S src/*
 B _build/*
-
+S /*
 PKG cil core

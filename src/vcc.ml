@@ -24,7 +24,6 @@ end
 
 let parseOneFile (fname: string) : Cil.file =
   let cabs, cil = Frontc.parse_with_cabs fname () in
-  Rmtmps.removeUnusedTemps cil;
   cil
 
 let outputFile (f : Cil.file) : unit =
