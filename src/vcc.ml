@@ -1,66 +1,81 @@
 open Core.Std
+open Cil
+open Log
 
-let test1 (f:Cil.file) : unit =
-  print_string "hello";
+let process (f:Cil.file) : unit =
   List.iter ~f:(fun g -> match g with
       | Cil.GFun(fd,loc) -> Cil.dumpGlobal Cil.defaultCilPrinter stdout (Cil.GFun(fd,loc));
       | _ -> ()) f.globals
 
-let rec findFunction (gl : Cil.global list) (fname : string) : Cil.fundec =
-  match gl with
-  | [] -> raise(Failure "Function not found")
-  | Cil.GFun(fd,_) :: _ when fd.svar.vname = fname -> fd
-  | _ :: rst -> findFunction rst fname
+let do_preprocess infile_path outfile_path =
+  ignore outfile_path;
+  Log.debug "entering do_compile";
+  let c_raw = match infile_path with
+    | None -> In_channel.input_all In_channel.stdin
+    | Some(path) -> In_channel.read_all path
+  in
+  (* Preprocess the file with clang *)
+  let (from_clang, to_clang) = Unix.open_process "clang - -std=c11 -E" in
+  Out_channel.output_string to_clang c_raw;
+  Out_channel.close to_clang; (* clang waits for end of file *)
+  let c_preprocessed = In_channel.input_all from_clang in
+  if Unix.close_process (from_clang, to_clang) <> Result.Ok( () ) then
+    failwith "Preprocessing failed"
+  else ();
+  (*generate preprocessed file*)
+  let outc=Out_channel.create outfile_path in
+  fprintf outc "%s\n" c_preprocessed;
+  ()
 
-class assignRmVisitor(vname:string)=object(self)
-  inherit Cil.nopCilVisitor
-  method vinst(i:Cil.instr)=
-    match i with 
-    |Cil.Set((Cil.Var vi,Cil.NoOffset),_,loc) when vi.vname = vname && vi.vglob -> 
-      Errormsg.log "%a : Assignment Deleted %a\n" Cil.d_loc loc Cil.d_instr i;
-      Cil.ChangeTo []
-    |_ -> Cil.SkipChildren
-end
-
-let parseOneFile (fname: string) : Cil.file =
+let do_parse (fname: string) : Cil.file =
   let cabs, cil = Frontc.parse_with_cabs fname () in
   cil
 
-let outputFile (f : Cil.file) : unit =
-  if !Vccoptions.outFile <> "" then
-    try
-      let c = open_out !Vccoptions.outFile in
 
-      Cil.print_CIL_Input := false;
-      Stats.time "printCIL"
-        (Cil.dumpFile (!Cil.printerForMaincil) c !Vccoptions.outFile) f;
-      close_out c
-    with _ ->
-      Errormsg.s (Errormsg.error "Couldn't open file %s" !Vccoptions.outFile)
+let command =
+  Command.basic
+    ~summary:"C prover"
+    ~readme:(fun () -> "https://github.com/jeb2239/VerifiedFormally")
+    Command.Spec.(
+      empty
+      +> flag "-c" (optional string) ~doc:"file.c compile the specified file"
+      +> flag "-o" (optional_with_default "a.out" string) ~doc:"file write output to the specified file"
+      +> flag "-v" no_arg ~doc:" print verbose debugging information"
+      +> flag "-vv" no_arg ~doc:" print extra verbose debugging information"
+    )
+    ( (* Handler *)
+      fun infile_path outfile_path verbose1 verbose2 () ->
+        let log_level = if verbose2 then Debug else if verbose1 then Info else Warn in
+        Log.set_min_level log_level;
+        Log.debug "Parsed command line options:";
+        Log.debug "  minimum log_level: %s" (string_of_level log_level);
+        Log.debug "  compiling file (empty for stdin): %s" (match infile_path with None -> "" | Some(s) -> s);
+        Log.debug "  writing executable to: %s" outfile_path;
+        try
+          Cil.print_CIL_Input := true;
+          Cil.insertImplicitCasts := false;
+          Cil.lineLength := 100000;
+          Cil.warnTruncate := false;
+          Errormsg.colorFlag := true;
+          Cabs2cil.doCollapseCallCast := true;
+          Ciloptions.fileNames :=[outfile_path];
+          let files = List.map ~f:do_parse !Ciloptions.fileNames in
+          let one =
+          match files with
+          | [] -> Errormsg.s (Errormsg.error "No file names provided")
+          | [o] -> o
+          | _ -> Mergecil.merge files "stdout"
+          in
+          process one;
+          do_preprocess infile_path outfile_path;
+          ignore (do_parse outfile_path)
 
-let processOneFile (cil: Cil.file) : unit =
-  outputFile cil
+        (* Catch any unhandled exceptions to suppress the nasty-looking message *)
+        with
+        | Failure(msg) | Sys_error(msg) ->
+            Log.error "%s" msg; Log.debug "call stack:\n%s" (Printexc.get_backtrace ()); exit 3
+    )
 
-let () =
-  
-  (*Unix.open_process "clang";*)  
-  Cil.print_CIL_Input := true;
-  Cil.insertImplicitCasts := false;
-  Cil.lineLength := 100000;
-  Cil.warnTruncate := false;
-  Errormsg.colorFlag := true;
-  Cabs2cil.doCollapseCallCast := true;
-  Ciloptions.fileNames :=["example.c.p"];
-  let files = List.map !Ciloptions.fileNames parseOneFile  in
-  let one =
-    match files with
-    | [] -> Errormsg.s (Errormsg.error "No file names provided")
-    | [o] -> o
-    | _ -> Mergecil.merge files "stdout"
-  in
-  test1 one
-
-;;
-
-
-
+let _ =
+  try Command.run ~version:("1.0") ~build_info:("1") command;
+  with Sys_error(msg) -> Log.error "Argument error: %s" msg; exit 4

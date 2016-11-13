@@ -2,7 +2,7 @@ open Core.Std
 open Cil
 open Log
 
-let test1 (f:Cil.file) : unit =
+let process (f:Cil.file) : unit =
   List.iter ~f:(fun g -> match g with
       | Cil.GFun(fd,loc) -> Cil.dumpGlobal Cil.defaultCilPrinter stdout (Cil.GFun(fd,loc));
       | _ -> ()) f.globals
@@ -66,7 +66,7 @@ let command =
           | [o] -> o
           | _ -> Mergecil.merge files "stdout"
           in
-          test1 one;
+          process one;
           do_preprocess infile_path outfile_path;
           ignore (do_parse outfile_path)
 
