@@ -1,8 +1,9 @@
 OCAMLBUILD = corebuild
 CFLAGS = -safe-string
-BUILDFLAGS = -use-ocamlfind -pkgs cil -cflags $(CFLAGS)
+BUILDFLAGS = -use-ocamlfind -I src/ -pkgs cil -cflags $(CFLAGS)
 
-vcc: *.ml *.mli
+.PHONY: vcc
+vcc:
 	$(OCAMLBUILD) $(BUILDFLAGS) vcc.native
 
 .PHONY: clean
