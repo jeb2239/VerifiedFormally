@@ -29,6 +29,7 @@ let do_preprocess infile_path outfile_path =
 
 let do_parse (fname: string) : Cil.file =
   let cabs, cil = Frontc.parse_with_cabs fname () in
+  ignore cabs;
   cil
 
 
