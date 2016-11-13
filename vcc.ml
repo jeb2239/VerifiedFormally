@@ -61,19 +61,18 @@ let command =
           Ciloptions.fileNames :=[outfile_path];
           let files = List.map ~f:do_parse !Ciloptions.fileNames in
           let one =
-          match files with
-          | [] -> Errormsg.s (Errormsg.error "No file names provided")
-          | [o] -> o
-          | _ -> Mergecil.merge files "stdout"
+            match files with
+            | [] -> Errormsg.s (Errormsg.error "No file names provided")
+            | [o] -> o
+            | _ -> Mergecil.merge files "stdout"
           in
           process one;
           do_preprocess infile_path outfile_path;
           ignore (do_parse outfile_path)
-
         (* Catch any unhandled exceptions to suppress the nasty-looking message *)
         with
         | Failure(msg) | Sys_error(msg) ->
-            Log.error "%s" msg; Log.debug "call stack:\n%s" (Printexc.get_backtrace ()); exit 3
+          Log.error "%s" msg; Log.debug "call stack:\n%s" (Printexc.get_backtrace ()); exit 3
     )
 
 let _ =
