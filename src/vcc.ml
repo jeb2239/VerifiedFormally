@@ -1,9 +1,13 @@
 open Core.Std
 open Cil
-
 open Log
 
-let do_compile infile_path outfile_path =
+let process (f:Cil.file) : unit =
+  List.iter ~f:(fun g -> match g with
+      | Cil.GFun(fd,loc) -> Cil.dumpGlobal Cil.defaultCilPrinter stdout (Cil.GFun(fd,loc));
+      | _ -> ()) f.globals
+
+let do_preprocess infile_path outfile_path =
   ignore outfile_path;
   Log.debug "entering do_compile";
   let c_raw = match infile_path with
@@ -18,12 +22,19 @@ let do_compile infile_path outfile_path =
   if Unix.close_process (from_clang, to_clang) <> Result.Ok( () ) then
     failwith "Preprocessing failed"
   else ();
-  print_endline c_preprocessed;
+  (*generate preprocessed file*)
+  let outc=Out_channel.create outfile_path in
+  fprintf outc "%s\n" c_preprocessed;
   ()
+
+let do_parse (fname: string) : Cil.file =
+  let cabs, cil = Frontc.parse_with_cabs fname () in
+  cil
+
 
 let command =
   Command.basic
-    ~summary:"Verified C compiler"
+    ~summary:"C prover"
     ~readme:(fun () -> "https://github.com/jeb2239/VerifiedFormally")
     Command.Spec.(
       empty
@@ -41,7 +52,24 @@ let command =
         Log.debug "  compiling file (empty for stdin): %s" (match infile_path with None -> "" | Some(s) -> s);
         Log.debug "  writing executable to: %s" outfile_path;
         try
-          do_compile infile_path outfile_path;
+          Cil.print_CIL_Input := true;
+          Cil.insertImplicitCasts := false;
+          Cil.lineLength := 100000;
+          Cil.warnTruncate := false;
+          Errormsg.colorFlag := true;
+          Cabs2cil.doCollapseCallCast := true;
+          Ciloptions.fileNames :=[outfile_path];
+          let files = List.map ~f:do_parse !Ciloptions.fileNames in
+          let one =
+          match files with
+          | [] -> Errormsg.s (Errormsg.error "No file names provided")
+          | [o] -> o
+          | _ -> Mergecil.merge files "stdout"
+          in
+          process one;
+          do_preprocess infile_path outfile_path;
+          ignore (do_parse outfile_path)
+
         (* Catch any unhandled exceptions to suppress the nasty-looking message *)
         with
         | Failure(msg) | Sys_error(msg) ->
