@@ -28,7 +28,7 @@ type why_context = {
     mutable vars :  Term.vsymbol String.Map.t;
 }
 
-let initOps (it : Theory.theory) (dt : Theory.theory) (mt: Theory.theory) : why_ops =
+let init_ops (it : Theory.theory) (dt : Theory.theory) (mt: Theory.theory) : why_ops =
     {
         iplus_op = Theory.ns_find_ls it.Theory.th_export ["infix +"];
         iminus_op = Theory.ns_find_ls it.Theory.th_export ["infix -"];
@@ -42,4 +42,23 @@ let initOps (it : Theory.theory) (dt : Theory.theory) (mt: Theory.theory) : why_
         get_op      = Theory.ns_find_ls mt.Theory.th_export ["get"];
         set_op      = Theory.ns_find_ls mt.Theory.th_export ["set"];
     }
+
+let init_why_context (p:string) (pv:string) = 
+
+    let config = Whyconf.read_config None in
+    let main = Whyconf.get_main config in
+    Whyconf.load_plugins main;
+    let provers = Whyconf.get_provers config in
+    Whyconf.Mprover.iter
+    (fun k a -> Errormsg.warn "%s %s (%s)" k.Whyconf.prover_name k.Whyconf.prover_version k.Whyconf.prover_altern)
+    provers
+    let prover_spec = {Whyconf.prover_name = p; Whyconf.prover_version = pv; Whyconf.prover_altern=""} in
+    let prover = 
+        try Whyconf.Mprover.find prover_spec provers
+        with Not_found -> Errormsg.s (Errormsg.error "Prover %s not found." p)
+    in
+    let env = Why3.Env.create_env (Why3.Whyconf.loadpath main) in
+    
+    
+
 
