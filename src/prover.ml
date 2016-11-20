@@ -26,6 +26,7 @@ type why_context = {
     mutable ops : why_ops;
     mutable memory: Term.vsymbol;
     mutable vars :  Term.vsymbol String.Map.t;
+    mutable prover : Whyconf.config_prover;
 }
 
 let init_ops (it : Theory.theory) (dt : Theory.theory) (mt: Theory.theory) : why_ops =
@@ -51,14 +52,34 @@ let init_why_context (p:string) (pv:string) =
     let provers = Whyconf.get_provers config in
     Whyconf.Mprover.iter
     (fun k a -> Errormsg.warn "%s %s (%s)" k.Whyconf.prover_name k.Whyconf.prover_version k.Whyconf.prover_altern)
-    provers
+    provers;
     let prover_spec = {Whyconf.prover_name = p; Whyconf.prover_version = pv; Whyconf.prover_altern=""} in
     let prover = 
         try Whyconf.Mprover.find prover_spec provers
         with Not_found -> Errormsg.s (Errormsg.error "Prover %s not found." p)
     in
     let env = Why3.Env.create_env (Why3.Whyconf.loadpath main) in
+    let driver : Why3.Driver.driver =
+        try Why3.Driver.load_driver env prover.Whyconf.driver []
+        with e -> Errormsg.s (Errormsg.error "Failed to load driver for %s." p)
+    in
+    let int_theory = Why3.Env.read_theory env ["int"] "Int" in
+    let div_theory = Why3.Env.read_theory env ["int"] "ComputerDivision" in
+    let arr_theory = Why3.Env.read_theory env ["map"] "Map" in
+    let task = List.fold_left [int_theory; div_theory; arr_theory] ~init:None ~f:Why3.Task.use_export
+    in
+    let arr_ts = Theory.ns_find_ts arr_theory.Theory.th_export ["map"] in
+    let int_arr_t = Why3.Ty.ty_app arr_ts [Why3.Ty.ty_int; Why3.Ty.ty_int] in
+    {
+        env = env; task=task; prover = prover; driver=driver;
+        ops = init_ops int_theory div_theory arr_theory;
+        memory = Term.create_vsymbol (Why3.Ident.id_fresh "M") int_arr_t;
+        vars=String.Map.empty;
+    }
+
     
+
+
     
 
 
