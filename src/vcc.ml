@@ -2,34 +2,34 @@ open Core.Std
 open Cil
 open Log
 
-let process (f:Cil.file) : unit =
+let dump (f : Cil.file) : unit =
   List.iter ~f:(fun g -> match g with
       | Cil.GFun(fd,loc) -> Cil.dumpGlobal Cil.defaultCilPrinter stdout (Cil.GFun(fd,loc));
       | _ -> ()) f.globals
 
-let do_preprocess infile_path outfile_path =
-  ignore outfile_path;
+let do_preprocess infile_path =
   Log.debug "entering do_compile";
-  let c_raw = match infile_path with
+  let c_raw = (In_channel.read_all "src/cil_compat.h") ^ match infile_path with
     | None -> In_channel.input_all In_channel.stdin
     | Some(path) -> In_channel.read_all path
   in
   (* Preprocess the file with clang *)
-  let (from_clang, to_clang) = Unix.open_process "clang - -std=c11 -E" in
+  let (from_clang, to_clang) = Unix.open_process "clang - -std=c11 -E -P" in
   Out_channel.output_string to_clang c_raw;
   Out_channel.close to_clang; (* clang waits for end of file *)
   let c_preprocessed = In_channel.input_all from_clang in
   if Unix.close_process (from_clang, to_clang) <> Result.Ok( () ) then
     failwith "Preprocessing failed"
   else ();
-  (*generate preprocessed file*)
-  let outc=Out_channel.create outfile_path in
-  fprintf outc "%s\n" c_preprocessed;
-  ()
+  let preprocessed_path = match infile_path with
+    | None -> "a.out.i"
+    | Some(path) -> path ^ ".i"
+  in
+  Out_channel.write_all preprocessed_path ~data:c_preprocessed;
+  preprocessed_path
 
-let do_parse (fname: string) : Cil.file =
-  let cabs, cil = Frontc.parse_with_cabs fname () in
-  ignore cabs;
+let do_parse (fname : string) : Cil.file =
+  let cil = Frontc.parse fname () in
   cil
 
 
@@ -59,17 +59,9 @@ let command =
           Cil.warnTruncate := false;
           Errormsg.colorFlag := true;
           Cabs2cil.doCollapseCallCast := true;
-          Ciloptions.fileNames :=[outfile_path];
-          let files = List.map ~f:do_parse !Ciloptions.fileNames in
-          let one =
-          match files with
-          | [] -> Errormsg.s (Errormsg.error "No file names provided")
-          | [o] -> o
-          | _ -> Mergecil.merge files "stdout"
-          in
-          process one;
-          do_preprocess infile_path outfile_path;
-          ignore (do_parse outfile_path)
+          let preprocessed_path = do_preprocess infile_path in
+          let cil = do_parse preprocessed_path in
+          dump cil;
 
         (* Catch any unhandled exceptions to suppress the nasty-looking message *)
         with

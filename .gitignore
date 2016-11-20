@@ -18,3 +18,10 @@ _build/
 # oasis generated files
 setup.data
 setup.log
+
+# c files
+*.o
+*.i
+a.out
+
+.DS_Store
