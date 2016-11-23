@@ -3,10 +3,35 @@ open Cil
 open Log
 open Prover
 
+(* non-stupid version of Pretty.doc to string *)
+let string_of_doc = Pretty.sprint ~width:Int.max_value
+
+
 let dump (f : Cil.file) : unit =
   List.iter ~f:(fun g -> match g with
       | Cil.GFun(fd,loc) -> Cil.dumpGlobal Cil.defaultCilPrinter stdout (Cil.GFun(fd,loc));
       | _ -> ()) f.globals
+
+
+class call_visitor (vnames : string list) = object(self)
+  inherit nopCilVisitor
+  method vinst (i : instr) =
+    let _ = match i with
+      | Call(_, Lval(Var(var), _), operand, loc) when List.mem vnames var.vname ->
+          let operand = match operand with
+            | [ o ] -> o
+            | _ -> failwithf "%s: Assertion %s must have exactly one operand" (string_of_doc (Cil.d_loc () loc)) var.vname ()
+          in
+          Log.info "%s: Asserting %s(%s)" (string_of_doc (Cil.d_loc () loc)) var.vname (string_of_doc (Cil.d_exp () operand))
+      | _ -> ()
+    in
+    DoChildren
+end
+
+let visit_calls (f : Cil.file) : unit =
+  let vis = new call_visitor [ "pre"; "post"; "invar" ] in
+  ignore (visitCilFile vis f)
+
 
 let do_preprocess infile_path =
   Log.debug "entering do_compile";
@@ -62,7 +87,7 @@ let command =
           Cabs2cil.doCollapseCallCast := true;
           let preprocessed_path = do_preprocess infile_path in
           let cil = do_parse preprocessed_path in
-          dump cil;
+          visit_calls cil;
 
         (* Catch any unhandled exceptions to suppress the nasty-looking message *)
         with
