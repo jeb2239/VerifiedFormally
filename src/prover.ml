@@ -1,6 +1,13 @@
+(*
+Currently most of this file is from https://www.cs.virginia.edu/~weimer/615/reading/ciltut.pdf
+chapter 11, it will act as a template from which we explore more of what the why3 prover has to offer
+implement some of the exercises at the end of the chapter.
+*)
+
+
 open Core.Std
 open Why3
-
+open Cil
 
 (* from cctut *)
 type why_ops = {
@@ -76,8 +83,18 @@ let init_why_context (p:string) (pv:string) =
         memory = Term.create_vsymbol (Why3.Ident.id_fresh "M") int_arr_t;
         vars=String.Map.empty;
     }
-
     
+
+let term_of_int (i:int) : Term.term =  Term.t_nat_const i
+
+let make_symbol (s :string ) : Term.vsymbol = Term.create_vsymbol (Why3.Ident.id_fresh s) Why3.Ty.ty_int
+
+let freshvar_of_ap (ap : attrparam) : string * Term.vsymbol = 
+    match ap with
+    ACons(n,[]) -> n , make_symbol n
+    | _ -> Errormsg.s (Errormsg.error "Names only")
+
+
 
 
     
