@@ -1,6 +1,7 @@
 open Core.Std
 open Cil
 open Log
+open Prover
 
 (* non-stupid version of Pretty.doc to string *)
 let string_of_doc = Pretty.sprint ~width:Int.max_value
@@ -17,19 +18,33 @@ class call_visitor (vnames : string list) = object(self)
   method vinst (i : instr) =
     let _ = match i with
       | Call(_, Lval(Var(var), _), operand, loc) when List.mem vnames var.vname ->
-          let operand = match operand with
-            | [ o ] -> o
-            | _ -> failwithf "%s: Assertion %s must have exactly one operand" (string_of_doc (Cil.d_loc () loc)) var.vname ()
-          in
-          Log.info "%s: Asserting %s(%s)" (string_of_doc (Cil.d_loc () loc)) var.vname (string_of_doc (Cil.d_exp () operand))
+        let operand = match operand with
+          | [ o ] -> o
+          | _ -> failwithf "%s: Assertion %s must have exactly one operand" (string_of_doc (Cil.d_loc () loc)) var.vname ()
+        in
+        Log.info "%s: Asserting %s(%s)" (string_of_doc (Cil.d_loc () loc)) var.vname (string_of_doc (Cil.d_exp () operand))
       | _ -> ()
     in
     DoChildren
 end
 
+class attr_visitor  = object(self)
+  inherit nopCilVisitor
+  method vattr (a : attribute) =
+    let _ =match a with
+      | Attr(_,_) ->  Log.info "Found an attribute %s" (string_of_doc (Cil.d_attr () a)) 
+    in
+    DoChildren
+end
+
+
+
 let visit_calls (f : Cil.file) : unit =
   let vis = new call_visitor [ "pre"; "post"; "invar" ] in
+  ignore (visitCilFile vis f);
+  let vis = new attr_visitor in
   ignore (visitCilFile vis f)
+
 
 
 let do_preprocess infile_path =
@@ -88,10 +103,10 @@ let command =
           let cil = do_parse preprocessed_path in
           visit_calls cil;
 
-        (* Catch any unhandled exceptions to suppress the nasty-looking message *)
+          (* Catch any unhandled exceptions to suppress the nasty-looking message *)
         with
         | Failure(msg) | Sys_error(msg) ->
-            Log.error "%s" msg; Log.debug "call stack:\n%s" (Printexc.get_backtrace ()); exit 3
+          Log.error "%s" msg; Log.debug "call stack:\n%s" (Printexc.get_backtrace ()); exit 3
     )
 
 let _ =
