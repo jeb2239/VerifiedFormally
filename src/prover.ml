@@ -10,7 +10,6 @@ open Why3
 open Cil
 
 
-let lazy noimpl = failwith "Not Implemented"
 
 
 (* from cctut *)
@@ -101,14 +100,14 @@ let freshvar_of_ap (ap : attrparam) : string * Term.vsymbol =
 (** this is our mutually recursive function which will decode the attibutes ast*)
 let rec term_of_atterparam (wc:why_context) (ap: Cil.attrparam) = 
   match ap with
-    AInt(i) -> noimpl
-  | ACons(n,[]) -> noimpl
-  | ACons("forall", apl) -> noimpl
-  | ACons("implies", [a ; b]) -> noimpl
-  | AUnOp(uo,ap) -> noimpl
-  | ABinOp(bo,a1,a2) -> noimpl
-  | AStar(ap) -> noimpl
-  | AIndex(base,index) -> noimpl 
+    AInt(i) -> term_of_int i
+  | ACons(n,[]) -> Term.t_var (String.Map.find_exn wc.vars n)
+  | ACons("forall", apl) -> term_of_forall wc apl
+  | ACons("implies", [a ; b]) -> term_of_implies wc a b
+  | AUnOp(uo,ap) -> term_of_apuop wc uo ap
+  | ABinOp(bo,a1,a2) -> term_of_apbop wc bo a1 a2
+  | AStar(ap) -> term_of_star wc ap
+  | AIndex(base,index) -> term_of_index wc base index 
   | _ -> Errormsg.s (Errormsg.error "Attrparam Is not a term %a" d_attrparam ap)
 
 and term_of_forall wc apl = 
