@@ -26,11 +26,9 @@ class call_visitor (vnames : string list) = object(self)
       | _ -> ()
     in
     DoChildren
-
 end
 
-(*this just erases attributes for now*)
-class attr_visitor (vnames : string list) = object(self)
+class attr_visitor  = object(self)
   inherit nopCilVisitor
   method vattr (a : attribute) =
     let _ =match a with
@@ -41,11 +39,10 @@ end
 
 
 
-
 let visit_calls (f : Cil.file) : unit =
   let vis = new call_visitor [ "pre"; "post"; "invar" ] in
   ignore (visitCilFile vis f);
-  let vis = new attr_visitor ["hey"] in
+  let vis = new attr_visitor in
   ignore (visitCilFile vis f)
 
 
