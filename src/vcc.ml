@@ -6,6 +6,10 @@ open Prover
 (* non-stupid version of Pretty.doc to string *)
 let string_of_doc = Pretty.sprint ~width:Int.max_value
 
+let onlyFunctions (fn : fundec -> location -> unit) (g : global) : unit = 
+  match g with
+  | GFun(f, loc) -> fn f loc
+  | _ -> ()
 
 let dump (f : Cil.file) : unit =
   List.iter ~f:(fun g -> match g with
@@ -28,7 +32,7 @@ class call_visitor (vnames : string list) = object(self)
     DoChildren
 end
 
-class attr_visitor  = object(self)
+class attr_visitor(vname :string list)  = object(self)
   inherit nopCilVisitor
   method vattr (a : attribute) =
     let _ =match a with
@@ -37,15 +41,28 @@ class attr_visitor  = object(self)
     DoChildren
 end
 
+class attrEraserVisitor(aname:string list) = object(self)
+  inherit nopCilVisitor
+
+  method vattr (a : attribute) =
+    match a with
+    | Attr(s,_) when List.mem aname s -> ChangeTo []
+    | _ -> DoChildren
+
+end
+
+let eraseAttrs (f : file) : unit =
+  let vis = new attrEraserVisitor ["pre";"post";"invar"] in
+  ignore (visitCilFile vis  f)
 
 
 let visit_calls (f : Cil.file) : unit =
-  let vis = new call_visitor [ "pre"; "post"; "invar" ] in
-  ignore (visitCilFile vis f);
-  let vis = new attr_visitor in
+  let vis = new attr_visitor [] in
   ignore (visitCilFile vis f)
 
-
+let prove (f:Cil.file) : unit =
+  let wc = init_why_context "Alt-Ergo" "1.01" in 
+  Cil.iterGlobals f (onlyFunctions (processFunction wc))  
 
 let do_preprocess infile_path =
   Log.debug "entering do_compile";
@@ -101,7 +118,10 @@ let command =
           Cabs2cil.doCollapseCallCast := true;
           let preprocessed_path = do_preprocess infile_path in
           let cil = do_parse preprocessed_path in
-          visit_calls cil;
+          (*visit_calls cil;*)
+          prove cil;
+          eraseAttrs cil;
+
 
           (* Catch any unhandled exceptions to suppress the nasty-looking message *)
         with
