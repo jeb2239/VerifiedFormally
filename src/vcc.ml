@@ -34,13 +34,13 @@ class attr_visitor (vnames : string list) = object(self)
   inherit nopCilVisitor
   method vattr (a : attribute) =
     let _ =match a with
-    | Attr(_,_) ->  Log.info "Found an attribute %s" (string_of_doc (Cil.d_attr () a)) 
+      | Attr(_,_) ->  Log.info "Found an attribute %s" (string_of_doc (Cil.d_attr () a)) 
     in
     DoChildren
 end
 
 
-  
+
 
 let visit_calls (f : Cil.file) : unit =
   let vis = new call_visitor [ "pre"; "post"; "invar" ] in
