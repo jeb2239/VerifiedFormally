@@ -230,7 +230,6 @@ and term_of_bop (wc : why_context) (b : binop) (e1 : exp) (e2 : exp) : Term.term
   let te2 = term_of_exp wc e2 in
   match b with
   | PlusA  | PlusPI  | IndexPI -> Term.t_app_infer wc.ops.iplus_op  [te1; te2]
-  
   | _ -> Errormsg.s (Errormsg.error "term_of_bop failed: %a %a %a\n"
               d_exp e1 d_binop b d_exp e2)
 
