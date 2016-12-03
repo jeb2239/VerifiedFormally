@@ -89,6 +89,9 @@ let do_parse (fname : string) : Cil.file =
   let cil = Frontc.parse fname () in
   cil
 
+let do_cil (fname : string) (file : Cil.file) =
+  let oc = open_out (fname^".cil") in
+  Cil.dumpFile Cil.defaultCilPrinter oc (fname^".cil") file
 
 let command =
   Command.basic
@@ -116,11 +119,17 @@ let command =
           Cil.warnTruncate := false;
           Errormsg.colorFlag := true;
           Cabs2cil.doCollapseCallCast := true;
+          Cilutil.printStats :=true;
+          Cilutil.printStages :=true;
           let preprocessed_path = do_preprocess infile_path in
           let cil = do_parse preprocessed_path in
-          (*visit_calls cil;*)
+          (*remove unused bs*)
+          Rmtmps.removeUnusedTemps cil;
+          (*This will fill in the preds and succs fields of Cil.stmt*)
+          Cfg.computeFileCFG cil;
           prove cil;
           eraseAttrs cil;
+          do_cil preprocessed_path cil;
 
 
           (* Catch any unhandled exceptions to suppress the nasty-looking message *)

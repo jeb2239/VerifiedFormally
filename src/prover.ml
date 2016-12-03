@@ -8,8 +8,9 @@ open Cil
 open Core.Std
 open Why3
 open Log
-
+open Format
 (*let string_of_doc = Vcc.string_of_doc*)
+
 
 let sm_find_all (sm : 'a String.Map.t) (sl : string list) : 'a list =
   List.map sl ~f:(fun s -> String.Map.find_exn sm s) 
@@ -259,6 +260,7 @@ let term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
 
 
 let rec term_of_stmt (wc : why_context) (s : stmt) : Term.term -> Term.term =
+  
   match s.skind with
   | Instr il          -> Core.Caml.List.fold_right (fun i t -> (term_of_inst wc i) t) il
   | If(e,tb,fb,loc)   -> term_of_if wc e tb fb

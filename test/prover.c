@@ -5,8 +5,8 @@ int (pre(n == 0)
       post(n == 4)
       check)(int n)
 {
-    
-    if(n==0){
+    int a=n;
+    if(a==0){
       n=4;
     }
   
@@ -15,6 +15,6 @@ int (pre(n == 0)
 
 int main()
 {
-  
+  //we need to flow forward data
   return check(0);
 }
