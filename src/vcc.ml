@@ -3,8 +3,8 @@ open Cil
 open Log
 open Prover
 
-(* non-stupid version of Pretty.doc to string *)
-let string_of_doc = Pretty.sprint ~width:Int.max_value
+
+(*let string_of_doc = Pretty.sprint ~width:Int.max_value*)
 
 let onlyFunctions (fn : fundec -> location -> unit) (g : global) : unit = 
   match g with
@@ -24,9 +24,9 @@ class call_visitor (vnames : string list) = object(self)
       | Call(_, Lval(Var(var), _), operand, loc) when List.mem vnames var.vname ->
         let operand = match operand with
           | [ o ] -> o
-          | _ -> failwithf "%s: Assertion %s must have exactly one operand" (string_of_doc (Cil.d_loc () loc)) var.vname ()
+          | _ -> failwithf "%s: Assertion %s must have exactly one operand" (Log.string_of_doc (Cil.d_loc () loc)) var.vname ()
         in
-        Log.info "%s: Asserting %s(%s)" (string_of_doc (Cil.d_loc () loc)) var.vname (string_of_doc (Cil.d_exp () operand))
+        Log.info "%s: Asserting %s(%s)" (Log.string_of_doc (Cil.d_loc () loc)) var.vname (Log.string_of_doc (Cil.d_exp () operand))
       | _ -> ()
     in
     DoChildren

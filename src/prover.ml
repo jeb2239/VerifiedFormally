@@ -4,10 +4,12 @@ chapter 11, it will act as a template from which we explore more of what the why
 implement some of the exercises at the end of the chapter.
 *)
 
-
+open Cil
 open Core.Std
 open Why3
-open Cil
+open Log
+
+(*let string_of_doc = Vcc.string_of_doc*)
 
 let sm_find_all (sm : 'a String.Map.t) (sl : string list) : 'a list =
   List.map sl ~f:(fun s -> String.Map.find_exn sm s) 
@@ -45,6 +47,8 @@ type why_context = {
   mutable vars :  Term.vsymbol String.Map.t;
   mutable prover : Whyconf.config_prover;
 }
+
+
 
 let init_ops (it : Theory.theory) (dt : Theory.theory) (mt: Theory.theory) : why_ops =
   {
@@ -197,10 +201,10 @@ let bterm_of_iterm (t : Term.term) : Term.term = Term.t_neq t (term_of_int 0)
 
 
 let rec term_of_exp (wc : why_context) (e : exp) : Term.term = 
-
+  
   match e with
   | Const(CInt64(i,_,_))   -> term_of_int (Int64.to_int_exn i)
-  | Lval(Var vi, NoOffset) -> Term.t_var (String.Map.find_exn wc.vars vi.vname)
+  | Lval(Var vi, NoOffset) -> (Log.debug "Lval found: %s" (Log.string_of_doc (d_exp () e))); Term.t_var (String.Map.find_exn wc.vars vi.vname)
   | Lval(Mem e, NoOffset)  ->
     let et = term_of_exp wc e in
     let mt = Term.t_var wc.memory in
@@ -230,6 +234,7 @@ and term_of_bop (wc : why_context) (b : binop) (e1 : exp) (e2 : exp) : Term.term
   let te2 = term_of_exp wc e2 in
   match b with
   | PlusA  | PlusPI  | IndexPI -> Term.t_app_infer wc.ops.iplus_op  [te1; te2]
+  | Eq -> (Log.debug "%s" (Log.string_of_doc (d_binop () b))); Term.t_equ te1 te2
   | _ -> Errormsg.s (Errormsg.error "term_of_bop failed: %a %a %a\n"
               d_exp e1 d_binop b d_exp e2)
 
@@ -263,6 +268,7 @@ let rec term_of_stmt (wc : why_context) (s : stmt) : Term.term -> Term.term =
   | _ -> Errormsg.s(Errormsg.error "Term_of_stmt failed")
 
 and term_of_if (wc : why_context) (e : exp) (tb : block) (fb : block) : Term.term -> Term.term =
+  Log.debug "%s" (Log.string_of_doc (d_exp () e));
   let te  = e |> term_of_exp wc |> bterm_of_iterm in
   let tbf = term_of_block wc tb in
   let fbf = term_of_block wc fb in
