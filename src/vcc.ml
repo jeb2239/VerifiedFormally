@@ -2,7 +2,7 @@ open Core.Std
 open Cil
 open Log
 open Prover
-
+open Visitors
 
 (*let string_of_doc = Pretty.sprint ~width:Int.max_value*)
 
@@ -17,39 +17,6 @@ let dump (f : Cil.file) : unit =
       | _ -> ()) f.globals
 
 
-class call_visitor (vnames : string list) = object(self)
-  inherit nopCilVisitor
-  method vinst (i : instr) =
-    let _ = match i with
-      | Call(_, Lval(Var(var), _), operand, loc) when List.mem vnames var.vname ->
-        let operand = match operand with
-          | [ o ] -> o
-          | _ -> failwithf "%s: Assertion %s must have exactly one operand" (Log.string_of_doc (Cil.d_loc () loc)) var.vname ()
-        in
-        Log.info "%s: Asserting %s(%s)" (Log.string_of_doc (Cil.d_loc () loc)) var.vname (Log.string_of_doc (Cil.d_exp () operand))
-      | _ -> ()
-    in
-    DoChildren
-end
-
-class attr_visitor(vname :string list)  = object(self)
-  inherit nopCilVisitor
-  method vattr (a : attribute) =
-    let _ =match a with
-      | Attr(_,_) ->  Log.info "Found an attribute %s" (string_of_doc (Cil.d_attr () a)) 
-    in
-    DoChildren
-end
-
-class attrEraserVisitor(aname:string list) = object(self)
-  inherit nopCilVisitor
-
-  method vattr (a : attribute) =
-    match a with
-    | Attr(s,_) when List.mem aname s -> ChangeTo []
-    | _ -> DoChildren
-
-end
 
 let eraseAttrs (f : file) : unit =
   let vis = new attrEraserVisitor ["pre";"post";"invar"] in
@@ -59,6 +26,8 @@ let eraseAttrs (f : file) : unit =
 let visit_calls (f : Cil.file) : unit =
   let vis = new attr_visitor [] in
   ignore (visitCilFile vis f)
+
+
 
 let prove (f:Cil.file) : unit =
   let wc = init_why_context "Alt-Ergo" "1.01" in 
@@ -125,8 +94,12 @@ let command =
           let cil = do_parse preprocessed_path in
           (*remove unused bs*)
           Rmtmps.removeUnusedTemps cil;
+          
           (*This will fill in the preds and succs fields of Cil.stmt*)
           Cfg.computeFileCFG cil;
+          Deadcodeelim.dce cil;
+
+          do_cil (preprocessed_path^".notproved") cil;
           prove cil;
           eraseAttrs cil;
           do_cil preprocessed_path cil;

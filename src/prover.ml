@@ -219,6 +219,9 @@ let rec term_of_exp (wc : why_context) (e : exp) : Term.term =
   | StartOf _
   | _ -> Errormsg.s(Errormsg.error "term_of_exp failed: %a" d_exp e)
 
+and iterm_of_bterm (t : Term.term) : Term.term =(printf "%a" Pretty.print_term t); Term.t_if t (term_of_int 1) (term_of_int 0)
+
+and bterm_of_iterm (t : Term.term) : Term.term = (printf "%a" Pretty.print_term t); Term.t_neq t (term_of_int 0)
 
 and term_of_uop (wc : why_context) (u : unop) (e : exp) : Term.term = 
 
@@ -230,7 +233,7 @@ and term_of_uop (wc : why_context) (u : unop) (e : exp) : Term.term =
 
 
 and term_of_bop (wc : why_context) (b : binop) (e1 : exp) (e2 : exp) : Term.term = 
-
+   (printf "%a" Pretty.print_task wc.task);
   let te1 = term_of_exp wc e1 in
   let te2 = term_of_exp wc e2 in
   match b with
@@ -246,6 +249,7 @@ let term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
   | Set((Var vi, NoOffset), e, loc) ->
     let te = term_of_exp wc e in
     let vs = String.Map.find_exn wc.vars vi.vname in
+    String.Map.iter_keys wc.vars ~f:(Log.debug "%s");
     Term.t_let_close vs te
     
   | Set((Mem me, NoOffset), e, loc) ->
@@ -253,6 +257,7 @@ let term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
     let tme = term_of_exp wc me in
     let ms = wc.memory in
     let ume = Term.t_app_infer wc.ops.set_op [Term.t_var ms; tme; te] in
+    String.Map.iter_keys wc.vars ~f:(Log.debug "%s");
     Term.t_let_close ms ume
     
   
@@ -260,7 +265,8 @@ let term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
 
 
 let rec term_of_stmt (wc : why_context) (s : stmt) : Term.term -> Term.term =
-  
+      String.Map.iter_keys wc.vars ~f:(Log.debug "%s");
+
   match s.skind with
   | Instr il          -> Core.Caml.List.fold_right (fun i t -> (term_of_inst wc i) t) il
   | If(e,tb,fb,loc)   -> term_of_if wc e tb fb
@@ -329,6 +335,9 @@ let validateWhyCtxt (w : why_context) (p : Term.term) : unit =
   ()
 
 let processFunction (wc : why_context) (fd : fundec) (loc : location) : unit =
+  Availexpslv.debug :=true;
+  Availexpslv.computeAEs fd;
+  
   wc.vars <-
     List.fold_left ~f:(fun m vi -> String.Map.add m ~key:vi.vname ~data:(make_symbol vi.vname))
       ~init:String.Map.empty (fd.slocals @ fd.sformals);
