@@ -22,6 +22,9 @@ let eraseAttrs (f : file) : unit =
   let vis = new attrEraserVisitor ["pre";"post";"invar"] in
   ignore (visitCilFile vis  f)
 
+let visitRets (f:file) : unit =
+  let vis = new returnVisitor in 
+  ignore (visitCilFile vis f)
 
 let visit_calls (f : Cil.file) : unit =
   let vis = new attr_visitor [] in
@@ -90,6 +93,7 @@ let command =
           Cabs2cil.doCollapseCallCast := true;
           Cilutil.printStats :=true;
           Cilutil.printStages :=true;
+          Cilutil.makeCFG:=true;
           let preprocessed_path = do_preprocess infile_path in
           let cil = do_parse preprocessed_path in
           (*remove unused bs*)
@@ -97,14 +101,15 @@ let command =
           
           (*This will fill in the preds and succs fields of Cil.stmt*)
           Cfg.computeFileCFG cil;
-          Deadcodeelim.dce cil;
-
+          (*Partial.do_feature_partial cil;*)
+          (*Deadcodeelim.dce cil;*)
+          
           do_cil (preprocessed_path^".notproved") cil;
+          
+          visitRets cil;
           prove cil;
           eraseAttrs cil;
           do_cil preprocessed_path cil;
-
-
           (* Catch any unhandled exceptions to suppress the nasty-looking message *)
         with
         | Failure(msg) | Sys_error(msg) ->

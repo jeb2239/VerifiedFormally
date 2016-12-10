@@ -2,15 +2,17 @@
 
 
 int (pre(n == 0)
-      post(n == 4)
+      post(n == 0)
       check)(int n)
 {
-    int a=30;
-    if(a==0){
-      n=4;
-    }
+  int q=3; 
   
-  return n;
+  if(q==3){
+    n=3;
+    
+  }
+  
+  return n; 
 }
 
 int main()
