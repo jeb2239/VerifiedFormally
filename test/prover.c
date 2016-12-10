@@ -7,10 +7,10 @@ int (pre(n == 0)
 {
   int q=3; 
   
-  if(q==3){
+  if(q==4){
     n=3;
     
-  }
+  } //forces a block idk there should be a better way to do this 
   
   return n; 
 }
