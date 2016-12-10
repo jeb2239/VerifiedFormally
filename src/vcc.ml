@@ -98,14 +98,14 @@ let command =
           let cil = do_parse preprocessed_path in
           (*remove unused bs*)
           Rmtmps.removeUnusedTemps cil;
-          
+
           (*This will fill in the preds and succs fields of Cil.stmt*)
           Cfg.computeFileCFG cil;
           (*Partial.do_feature_partial cil;*)
           (*Deadcodeelim.dce cil;*)
-          
+
           do_cil (preprocessed_path^".notproved") cil;
-          
+
           visitRets cil;
           prove cil;
           eraseAttrs cil;

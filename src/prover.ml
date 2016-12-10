@@ -36,7 +36,7 @@ type why_ops = {
   eq_op : Term.lsymbol;
   set_op : Term.lsymbol;
   get_op : Term.lsymbol;
-  
+
 }
 
 
@@ -217,7 +217,7 @@ let bterm_of_iterm (t : Term.term) : Term.term = Term.t_neq t (term_of_int 0)
 
 
 let rec term_of_exp (wc : why_context) (e : exp) : Term.term = 
-  
+
   match e with
   | Const(CInt64(i,_,_))   -> term_of_int (Int64.to_int_exn i)
   | Lval(Var vi, NoOffset) -> (Log.debug "Lval found: %s" (Log.string_of_doc (d_exp () e))); Term.t_var (String.Map.find_exn wc.vars vi.vname)
@@ -250,14 +250,14 @@ and term_of_uop (wc : why_context) (u : unop) (e : exp) : Term.term =
 
 
 and term_of_bop (wc : why_context) (b : binop) (e1 : exp) (e2 : exp) : Term.term = 
-   
+
   let te1 = term_of_exp wc e1 in
   let te2 = term_of_exp wc e2 in
   match b with
   | PlusA  | PlusPI  | IndexPI -> Term.t_app_infer wc.ops.iplus_op  [te1; te2]
   | Eq -> (Log.debug "%s" (Log.string_of_doc (d_binop () b))); Term.t_equ te1 te2
   | _ -> Errormsg.s (Errormsg.error "term_of_bop failed: %a %a %a\n"
-              d_exp e1 d_binop b d_exp e2)
+                       d_exp e1 d_binop b d_exp e2)
 
 
 
@@ -265,13 +265,13 @@ and term_of_bop (wc : why_context) (b : binop) (e1 : exp) (e2 : exp) : Term.term
 
 
 let getAE_exn a = let opt = Availexpslv.getAEs a in 
-match opt with
-| Some(ae) -> ae
-| None -> failwith "calling getAE failed"
+  match opt with
+  | Some(ae) -> ae
+  | None -> failwith "calling getAE failed"
 
 let rec term_of_stmt (wc : why_context) (s : stmt) : Term.term -> Term.term =
-      
-      
+
+
   match s.skind with
   | Instr il          -> Core.Caml.List.fold_right (fun i t -> (term_of_inst wc i) t) il
   | If(e,tb,fb,loc)   -> term_of_if wc e tb fb
@@ -295,22 +295,22 @@ and term_of_loop (wc : why_context) (b : block) : Term.term -> Term.term =
   let ct, li, lvl = inv_of_attrs wc body_block.battrs in
   let lvl' = wc.memory :: lvl in
   (fun t -> t
-    |> Term.t_if ct (bf li)        
-    |> Term.t_implies li           
-    |> Term.t_forall_close lvl' [] 
-    |> Term.t_and li)              
+            |> Term.t_if ct (bf li)        
+            |> Term.t_implies li           
+            |> Term.t_forall_close lvl' [] 
+            |> Term.t_and li)              
 
 and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
   Log.info "in term_of_inst";
   match i with
   | Set((Var vi, NoOffset), e, loc) ->
-    
+
     let te = term_of_exp wc e in
     Log.info "%s" (string_of_doc  (d_exp () e));
     let vs = String.Map.find_exn wc.vars vi.vname in
     String.Map.iter_keys wc.vars ~f:(Log.debug "%s");
     Term.t_let_close vs te
-    
+
   | Set((Mem me, NoOffset), e, loc) ->
     let te = term_of_exp wc e in
     let tme = term_of_exp wc me in
@@ -318,8 +318,8 @@ and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
     let ume = Term.t_app_infer wc.ops.set_op [Term.t_var ms; tme; te] in
     String.Map.iter_keys wc.vars ~f:(Log.debug "%s");
     Term.t_let_close ms ume
-    
-  
+
+
   | _ -> Errormsg.s (Errormsg.error "term_of_inst: We can only handle assignment")
 
 and term_of_block (wc : why_context) (b : block) : Term.term -> Term.term =
@@ -354,7 +354,7 @@ let validateWhyCtxt (w : why_context) (p : Term.term) : unit =
   let res =
     Why3.Call_provers.wait_on_call
       (Why3.Driver.prove_task ~command:w.prover.Why3.Whyconf.command
-                           ~limit:{limit_time=Some(120); limit_mem=None ; limit_steps=None} w.driver t ())
+         ~limit:{limit_time=Some(120); limit_mem=None ; limit_steps=None} w.driver t ())
       ()
   in
   (*Log.info (Format.asprintf stdout Pretty.print_task w.task);*)
@@ -365,7 +365,7 @@ let validateWhyCtxt (w : why_context) (p : Term.term) : unit =
 let processFunction (wc : why_context) (fd : fundec) (loc : location) : unit =
   Availexpslv.computeAEs fd;
   (*Oneret.oneret fd;*)
-  
+
   wc.vars <-
     List.fold_left ~f:(fun m vi -> String.Map.add m ~key:vi.vname ~data:(make_symbol vi.vname))
       ~init:String.Map.empty (fd.slocals @ fd.sformals);
