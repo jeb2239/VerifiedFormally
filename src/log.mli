@@ -16,3 +16,5 @@ val error : ('a, out_channel, unit) format -> 'a
 val warn  : ('a, out_channel, unit) format -> 'a
 val info  : ('a, out_channel, unit) format -> 'a
 val debug : ('a, out_channel, unit) format -> 'a
+
+val string_of_doc : Pretty.doc -> string

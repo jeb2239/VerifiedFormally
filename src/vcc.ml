@@ -2,10 +2,14 @@ open Core.Std
 open Cil
 open Log
 open Prover
+open Visitors
 
-(* non-stupid version of Pretty.doc to string *)
-let string_of_doc = Pretty.sprint ~width:Int.max_value
+(*let string_of_doc = Pretty.sprint ~width:Int.max_value*)
 
+let onlyFunctions (fn : fundec -> location -> unit) (g : global) : unit = 
+  match g with
+  | GFun(f, loc) -> fn f loc
+  | _ -> ()
 
 let dump (f : Cil.file) : unit =
   List.iter ~f:(fun g -> match g with
@@ -13,39 +17,24 @@ let dump (f : Cil.file) : unit =
       | _ -> ()) f.globals
 
 
-class call_visitor (vnames : string list) = object(self)
-  inherit nopCilVisitor
-  method vinst (i : instr) =
-    let _ = match i with
-      | Call(_, Lval(Var(var), _), operand, loc) when List.mem vnames var.vname ->
-        let operand = match operand with
-          | [ o ] -> o
-          | _ -> failwithf "%s: Assertion %s must have exactly one operand" (string_of_doc (Cil.d_loc () loc)) var.vname ()
-        in
-        Log.info "%s: Asserting %s(%s)" (string_of_doc (Cil.d_loc () loc)) var.vname (string_of_doc (Cil.d_exp () operand))
-      | _ -> ()
-    in
-    DoChildren
-end
 
-class attr_visitor  = object(self)
-  inherit nopCilVisitor
-  method vattr (a : attribute) =
-    let _ =match a with
-      | Attr(_,_) ->  Log.info "Found an attribute %s" (string_of_doc (Cil.d_attr () a)) 
-    in
-    DoChildren
-end
+let eraseAttrs (f : file) : unit =
+  let vis = new attrEraserVisitor ["pre";"post";"invar"] in
+  ignore (visitCilFile vis  f)
 
-
+let visitRets (f:file) : unit =
+  let vis = new returnVisitor in 
+  ignore (visitCilFile vis f)
 
 let visit_calls (f : Cil.file) : unit =
-  let vis = new call_visitor [ "pre"; "post"; "invar" ] in
-  ignore (visitCilFile vis f);
-  let vis = new attr_visitor in
+  let vis = new attr_visitor [] in
   ignore (visitCilFile vis f)
 
 
+
+let prove (f:Cil.file) : unit =
+  let wc = init_why_context "Alt-Ergo" "1.01" in 
+  Cil.iterGlobals f (onlyFunctions (processFunction wc))  
 
 let do_preprocess infile_path =
   Log.debug "entering do_compile";
@@ -72,6 +61,9 @@ let do_parse (fname : string) : Cil.file =
   let cil = Frontc.parse fname () in
   cil
 
+let do_cil (fname : string) (file : Cil.file) =
+  let oc = open_out (fname^".cil") in
+  Cil.dumpFile Cil.defaultCilPrinter oc (fname^".cil") file
 
 let command =
   Command.basic
@@ -99,10 +91,25 @@ let command =
           Cil.warnTruncate := false;
           Errormsg.colorFlag := true;
           Cabs2cil.doCollapseCallCast := true;
+          Cilutil.printStats :=true;
+          Cilutil.printStages :=true;
+          Cilutil.makeCFG:=true;
           let preprocessed_path = do_preprocess infile_path in
           let cil = do_parse preprocessed_path in
-          visit_calls cil;
+          (*remove unused bs*)
+          Rmtmps.removeUnusedTemps cil;
 
+          (*This will fill in the preds and succs fields of Cil.stmt*)
+          Cfg.computeFileCFG cil;
+          (*Partial.do_feature_partial cil;*)
+          (*Deadcodeelim.dce cil;*)
+
+          do_cil (preprocessed_path^".notproved") cil;
+
+          visitRets cil;
+          prove cil;
+          eraseAttrs cil;
+          do_cil preprocessed_path cil;
           (* Catch any unhandled exceptions to suppress the nasty-looking message *)
         with
         | Failure(msg) | Sys_error(msg) ->
