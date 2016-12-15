@@ -257,6 +257,18 @@ and term_of_bop (wc : why_context) (b : binop) (e1 : exp) (e2 : exp) : Term.term
   let te2 = term_of_exp wc e2 in
   match b with
   | PlusA  | PlusPI  | IndexPI -> Term.t_app_infer wc.ops.iplus_op  [te1; te2]
+  | MinusA | MinusPI | MinusPP -> Term.t_app_infer wc.ops.iminus_op [te1; te2]
+  | Mult -> Term.t_app_infer wc.ops.itimes_op [te1; te2]
+  | Div  -> Term.t_app_infer wc.ops.idiv_op   [te1; te2]
+  | Mod  -> Term.t_app_infer wc.ops.imod_op   [te1; te2]
+  | Lt   -> Term.t_app_infer wc.ops.lt_op  [te1; te2]
+  | Gt   -> Term.t_app_infer wc.ops.gt_op  [te1; te2]
+  | Le   -> Term.t_app_infer wc.ops.lte_op [te1; te2]
+  | Ge   -> Term.t_app_infer wc.ops.gte_op [te1; te2]
+  | Eq   -> Term.t_equ te1 te2
+  | Ne   -> Term.t_neq te1 te2
+  | LAnd -> Term.t_and te1 te2
+  | LOr  -> Term.t_or  te1 te2
   | Eq -> (Log.debug "%s" (Log.string_of_doc (d_binop () b))); Term.t_equ te1 te2
   | _ -> Errormsg.s (Errormsg.error "term_of_bop failed: %a %a %a\n"
                        d_exp e1 d_binop b d_exp e2)
