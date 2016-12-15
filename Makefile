@@ -9,4 +9,6 @@ vcc:
 .PHONY: clean
 clean:
 	$(OCAMLBUILD) -clean
-	rm -f test/*.i test/*.cil
+
+	rm test/*.i test/*.cil test/*.why
+

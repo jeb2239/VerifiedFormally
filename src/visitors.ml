@@ -43,7 +43,7 @@ TFun(t , _,_,_) -> Log.info "%s" (string_of_doc (d_type () t)); t
 
 class returnVisitor = object(self)
   inherit nopCilVisitor
-
+  
   (*method vfunc (a:fundec) =
     let vi = makeLocalVar a "ret" (get_return_type a.svar.vtype)
     in
