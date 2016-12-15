@@ -32,9 +32,9 @@ let visit_calls (f : Cil.file) : unit =
 
 
 
-let prove (f:Cil.file) : unit =
+let prove (f:Cil.file) (fname:string)  =
   let wc = init_why_context "Alt-Ergo" "1.01" in 
-  Cil.iterGlobals f (onlyFunctions (processFunction wc))  
+  Cil.iterGlobals f (onlyFunctions (processFunction wc fname))  
 
 let do_preprocess infile_path =
   Log.debug "entering do_compile";
@@ -105,9 +105,9 @@ let command =
           (*Deadcodeelim.dce cil;*)
 
           do_cil (preprocessed_path^".notproved") cil;
-
+          
           visitRets cil;
-          prove cil;
+          prove cil ((Option.value_exn infile_path)^".vc");
           eraseAttrs cil;
           do_cil preprocessed_path cil;
           (* Catch any unhandled exceptions to suppress the nasty-looking message *)
