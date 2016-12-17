@@ -329,7 +329,15 @@ and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
     String.Map.iter_keys wc.vars ~f:(Log.debug "%s");
     Term.t_let_close ms ume
 
-
+  | Call(Some(Var vi, NoOffset),expr,exprs,loc) -> 
+   Errormsg.s (Errormsg.error "%s" (string_of_doc (d_exp () expr))) (*here we will assert 
+                                                        the precondition for each 
+                                                        argument*)
+                                                       
+  (*let cur_term_of_exp = term_of_exp wc in
+  let te = term_of_exp wc expr in
+  let tme = List.map exprs ~f:cur_term_of_exp in*)
+  
   | _ -> Errormsg.s (Errormsg.error "term_of_inst: We can only handle assignment")
 
 and term_of_block (wc : why_context) (b : block) : Term.term -> Term.term =
@@ -383,9 +391,19 @@ let checkFunction (wc : why_context) (fname) (fd: fundec) (loc :location) :  Cal
   | Some g ->  
     let pre = pre_of_function wc fd in
     let vc = vcgen wc fd pre g in 
-    Some(validateWhyCtxt wc vc (Log.name_of_fundec fd))
+    Some(validateWhyCtxt wc vc (fname^"."^(Log.name_of_fundec fd)))
     
-
+(*
+Note that at the callsite for a function, we
+I assert the pre-condition
+I assume the post-condition
+while when checking the callee we
+I assume the pre-condition
+I assert the post-condition
+This is key for modular verification
+I Breaks verification up into pieces matching function
+abstraction
+*)
 
 (*let processFunction (wc : why_context) (fname) (fd : fundec) (loc : location) : unit =
   (*Availexpslv.computeAEs fd;*)

@@ -5,7 +5,7 @@ open Prover
 open Visitors
 open Why3
 (*let string_of_doc = Pretty.sprint ~width:Int.max_value*)
- 
+
 
 let onlyFunctions (fn : fundec -> location -> Call_provers.prover_result option) (g : global) : unit = 
   match g with

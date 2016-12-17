@@ -1,4 +1,12 @@
- 
+
+int 
+(pre(n==0)
+post(n==0)
+inner)(int n)
+{
+ return n; 
+}
+
 
 
 int (pre(n == 0)
@@ -6,7 +14,7 @@ int (pre(n == 0)
       check)(int n)
 {
   int q=3; 
-  
+  int a=inner(0);
   if(q==4){
     n=3;
     
@@ -17,6 +25,7 @@ int (pre(n == 0)
 
 int main()
 {
+
   //we need to flow forward data
   return check(0);
 }
