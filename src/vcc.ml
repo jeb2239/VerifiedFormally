@@ -8,6 +8,7 @@ open Why3
 
 
 let onlyFunctions (fn : fundec -> location -> Call_provers.prover_result option) (g : global) : unit = 
+
   match g with
   | GFun(f, loc) -> Log.info "%s" f.svar.vname ; ignore (fn f loc) (* this fun maps over functions*)
   | _ -> ()
@@ -24,7 +25,7 @@ let eraseAttrs (f : file) : unit =
   ignore (visitCilFile vis  f)
 
 let visitRets (f:file) : unit =
-  let vis = new returnVisitor in 
+  let vis = new returnVisitor in
   ignore (visitCilFile vis f)
 
 let visit_calls (f : Cil.file) : unit =
@@ -41,6 +42,16 @@ let prove (f:Cil.file) (fname:string)  =
   let ls = [] in
   Cil.iterGlobals f (onlyFunctions (checkFunction wc fname))  
   
+
+let find_functions (f : Cil.file) : function_metadata list =
+  let metadata = ref [] in
+  let vis = new function_info_visitor metadata in
+  ignore (visitCilFile vis f);
+  !metadata
+
+
+
+
 let do_preprocess infile_path =
   Log.debug "entering do_compile";
   let c_raw = (In_channel.read_all "src/cil_compat.h") ^ match infile_path with
@@ -111,6 +122,10 @@ let command =
           (*visit_calls cil;*)
           visit_call_site cil;
           do_cil (preprocessed_path^".notproved") cil;
+(*<<<<<<< HEAD
+=======*)
+          let function_data = find_functions cil in
+(*>>>>>>> origin/kevin_grab_headers*)
 
           visitRets cil;
           prove cil ((Option.value_exn infile_path)^".vc");

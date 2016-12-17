@@ -330,14 +330,14 @@ and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
     Term.t_let_close ms ume
 
   | Call(Some(Var vi, NoOffset),expr,exprs,loc) -> 
-   Errormsg.s (Errormsg.error "%s" (string_of_doc (d_exp () expr))) (*here we will assert 
-                                                        the precondition for each 
-                                                        argument*)
-                                                       
+    Errormsg.s (Errormsg.error "%s" (string_of_doc (d_exp () expr))) (*here we will assert 
+                                                                       the precondition for each 
+                                                                       argument*)
+
   (*let cur_term_of_exp = term_of_exp wc in
-  let te = term_of_exp wc expr in
-  let tme = List.map exprs ~f:cur_term_of_exp in*)
-  
+    let te = term_of_exp wc expr in
+    let tme = List.map exprs ~f:cur_term_of_exp in*)
+
   | _ -> Errormsg.s (Errormsg.error "term_of_inst: We can only handle assignment")
 
 and term_of_block (wc : why_context) (b : block) : Term.term -> Term.term =
@@ -372,15 +372,15 @@ let validateWhyCtxt (w : why_context) (p : Term.term) (fname :string) =
   Log.info "%s "(string_of_task t);
   Out_channel.write_all (fname^".why") ~data:(string_of_task t);
 
-    Why3.Call_provers.wait_on_call
-      (Why3.Driver.prove_task ~command:w.prover.command
-         ~limit:{limit_time=Some(120); limit_mem=None ; limit_steps=None} w.driver t ())
-      ()
-  
+  Why3.Call_provers.wait_on_call
+    (Why3.Driver.prove_task ~command:w.prover.command
+       ~limit:{limit_time=Some(120); limit_mem=None ; limit_steps=None} w.driver t ())
+    ()
 
-  (*Log.info (Format.asprintf stdout Pretty.print_task w.task);*)
-  
-  
+
+(*Log.info (Format.asprintf stdout Pretty.print_task w.task);*)
+
+
 
 let checkFunction (wc : why_context) (fname) (fd: fundec) (loc :location) :  Call_provers.prover_result option =
   wc.vars <-
@@ -392,7 +392,7 @@ let checkFunction (wc : why_context) (fname) (fd: fundec) (loc :location) :  Cal
     let pre = pre_of_function wc fd in
     let vc = vcgen wc fd pre g in 
     Some(validateWhyCtxt wc vc (fname^"."^(Log.name_of_fundec fd)))
-    
+
 (*
 Note that at the callsite for a function, we
 I assert the pre-condition
