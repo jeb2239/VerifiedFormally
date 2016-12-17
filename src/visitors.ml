@@ -2,6 +2,7 @@ open Core.Std
 open Cil
 open Log
 open Prover
+open Why3
 
 class call_visitor (vnames : string list) = object(self)
   inherit nopCilVisitor
@@ -18,11 +19,29 @@ class call_visitor (vnames : string list) = object(self)
     DoChildren
 end
 
+type function_metadata = {
+  mutable fn_prover_result : Call_provers.prover_answer;
+  mutable fn_svar : varinfo; (* name, return type, attributes *)
+  mutable fn_sformals: varinfo list; (* arguments *)
+}
+
+class function_info_visitor (metadata : function_metadata list ref) = object(self)
+  inherit nopCilVisitor
+  method vfunc (f : fundec) =
+    let cur = {
+      fn_prover_result = Unknown("dummy", None);
+      fn_svar = f.svar;
+      fn_sformals = f.sformals
+    } in
+    metadata := cur :: !metadata;
+    SkipChildren
+end
+
 class attr_visitor(vname :string list)  = object(self)
   inherit nopCilVisitor
   method vattr (a : attribute) =
     let _ =match a with
-      | Attr(_,_) ->  Log.info "Found an attribute %s" (string_of_doc (Cil.d_attr () a)) 
+      | Attr(_,_) ->  Log.info "Found an attribute %s" (string_of_doc (Cil.d_attr () a))
     in
     DoChildren
 end
@@ -43,23 +62,23 @@ TFun(t , _,_,_) -> Log.info "%s" (string_of_doc (d_type () t)); t
 
 class returnVisitor = object(self)
   inherit nopCilVisitor
-  
+
   (*method vfunc (a:fundec) =
     let vi = makeLocalVar a "ret" (get_return_type a.svar.vtype)
     in
     let k a=match List.hd_exn (List.rev a.sbody.bstmts) with
-    Return(_,loc) -> loc 
+    Return(_,loc) -> loc
     | _ -> failwith "fail"
-    in 
+    in
     let stm = mkStmt Return(Var(vi), k)
     in
     DoChildren*)
 
-  method vstmt (a: stmt) = 
+  method vstmt (a: stmt) =
     let _ = match a.skind with
       | Return(Some(e),loc) -> Log.debug "%s" (string_of_doc (d_exp () e));
       | _ -> ()
-      in 
+      in
       DoChildren
 
 end

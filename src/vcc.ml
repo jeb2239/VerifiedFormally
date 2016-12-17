@@ -6,7 +6,7 @@ open Visitors
 
 (*let string_of_doc = Pretty.sprint ~width:Int.max_value*)
 
-let onlyFunctions (fn : fundec -> location -> unit) (g : global) : unit = 
+let onlyFunctions (fn : fundec -> location -> unit) (g : global) : unit =
   match g with
   | GFun(f, loc) -> fn f loc
   | _ -> ()
@@ -23,18 +23,23 @@ let eraseAttrs (f : file) : unit =
   ignore (visitCilFile vis  f)
 
 let visitRets (f:file) : unit =
-  let vis = new returnVisitor in 
+  let vis = new returnVisitor in
   ignore (visitCilFile vis f)
 
 let visit_calls (f : Cil.file) : unit =
   let vis = new attr_visitor [] in
   ignore (visitCilFile vis f)
 
+let find_functions (f : Cil.file) : function_metadata list =
+  let metadata = ref [] in
+  let vis = new function_info_visitor metadata in
+  ignore (visitCilFile vis f);
+  !metadata
 
 
 let prove (f:Cil.file) (fname:string)  =
-  let wc = init_why_context "Alt-Ergo" "1.01" in 
-  Cil.iterGlobals f (onlyFunctions (processFunction wc fname))  
+  let wc = init_why_context "Alt-Ergo" "1.01" in
+  Cil.iterGlobals f (onlyFunctions (processFunction wc fname))
 
 let do_preprocess infile_path =
   Log.debug "entering do_compile";
@@ -105,7 +110,8 @@ let command =
           (*Deadcodeelim.dce cil;*)
 
           do_cil (preprocessed_path^".notproved") cil;
-          
+          let function_data = find_functions cil in
+
           visitRets cil;
           prove cil ((Option.value_exn infile_path)^".vc");
           eraseAttrs cil;
