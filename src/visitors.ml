@@ -1,7 +1,6 @@
 open Core.Std
 open Cil
 open Log
-open Prover
 open Why3
 
 
@@ -13,7 +12,7 @@ class call_visitor  = object(self)
       | Call(_, Lval(Var(var), _), operand, loc)  -> let operand=List.hd_exn operand  in
       Log.info "%s: Asserting precondition %s(%s)" (Log.string_of_doc (Cil.d_loc () loc)) var.vname (Log.string_of_doc (Cil.d_exp () operand))
       | _ -> ()
-        
+
     in
     DoChildren
 end

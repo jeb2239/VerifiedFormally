@@ -10,6 +10,8 @@ open Why3
 open Log
 open Format
 open Availexpslv
+open Visitors
+
 (*let string_of_doc = Vcc.string_of_doc*)
 
 
@@ -17,7 +19,7 @@ open Availexpslv
 let string_of_task t = Format.asprintf "%a" Pretty.print_task t
 
 let sm_find_all (sm : 'a String.Map.t) (sl : string list) : 'a list =
-  List.map sl ~f:(fun s -> String.Map.find_exn sm s) 
+  List.map sl ~f:(fun s -> String.Map.find_exn sm s)
 
 let force_block (s : stmt) : block =
   match s.skind with
@@ -54,6 +56,7 @@ type why_context = {
   mutable memory: Term.vsymbol;
   mutable vars :  Term.vsymbol String.Map.t;
   mutable prover : Whyconf.config_prover;
+  mutable function_data : Visitors.function_metadata list;
   available_vals : Cil.exp String.Map.t;
 }
 
@@ -77,7 +80,7 @@ let init_ops (it : Theory.theory) (dt : Theory.theory) (mt: Theory.theory) : why
     set_op      = Theory.ns_find_ls mt.Theory.th_export ["set"];
   }
 
-let init_why_context (p:string) (pv:string) = 
+let init_why_context (p:string) (pv:string) (fdata : Visitors.function_metadata list) =
 
   let config = Whyconf.read_config None in
   let main = Whyconf.get_main config in
@@ -87,7 +90,7 @@ let init_why_context (p:string) (pv:string) =
     (fun k a -> Errormsg.warn "%s %s (%s)" k.Whyconf.prover_name k.Whyconf.prover_version k.Whyconf.prover_altern)
     provers;
   let prover_spec = {Whyconf.prover_name = p; Whyconf.prover_version = pv; Whyconf.prover_altern=""} in
-  let prover = 
+  let prover =
     try Whyconf.Mprover.find prover_spec provers
     with Not_found -> Errormsg.s (Errormsg.error "Prover %s not found." p)
   in
@@ -108,6 +111,7 @@ let init_why_context (p:string) (pv:string) =
     ops = init_ops int_theory div_theory arr_theory;
     memory = Term.create_vsymbol (Why3.Ident.id_fresh "M") int_arr_t;
     vars=String.Map.empty; available_vals = String.Map.empty;
+    function_data = fdata;
   }
 
 
@@ -115,13 +119,13 @@ let term_of_int (i:int) : Term.term =  Term.t_nat_const i
 
 let make_symbol (s :string ) : Term.vsymbol = Term.create_vsymbol (Why3.Ident.id_fresh s) Why3.Ty.ty_int
 
-let freshvar_of_ap (ap : attrparam) : string * Term.vsymbol = 
+let freshvar_of_ap (ap : attrparam) : string * Term.vsymbol =
   match ap with
     ACons(n,[]) -> n , make_symbol n
   | _ -> Errormsg.s (Errormsg.error "Names only")
 
 (** this is our mutually recursive function which will decode the attibutes ast*)
-let rec term_of_atterparam (wc:why_context) (ap: Cil.attrparam) = 
+let rec term_of_atterparam (wc:why_context) (ap: Cil.attrparam) =
   match ap with
     AInt(i) -> term_of_int i
   | ACons(n,[]) -> Term.t_var (String.Map.find_exn wc.vars n)
@@ -130,10 +134,10 @@ let rec term_of_atterparam (wc:why_context) (ap: Cil.attrparam) =
   | AUnOp(uo,ap) -> term_of_apuop wc uo ap
   | ABinOp(bo,a1,a2) -> term_of_apbop wc bo a1 a2
   | AStar(ap) -> term_of_star wc ap
-  | AIndex(base,index) -> term_of_index wc base index 
+  | AIndex(base,index) -> term_of_index wc base index
   | _ -> Errormsg.s (Errormsg.error "Attrparam Is not a term %a" d_attrparam ap)
 
-and term_of_forall wc apl = 
+and term_of_forall wc apl =
   (*first atter*)
   let fat = apl |> List.rev |> List.hd_exn in
   let vl = apl |> List.rev |> List.tl_exn |> List.map ~f:freshvar_of_ap in
@@ -143,22 +147,22 @@ and term_of_forall wc apl =
   wc.vars <- oldm;
   Term.t_forall_close (List.map vl ~f:snd) [] t
 
-and term_of_implies (wc: why_context) (a: attrparam) (c: attrparam) = 
+and term_of_implies (wc: why_context) (a: attrparam) (c: attrparam) =
   let at = term_of_atterparam wc a in
   let ct = term_of_atterparam wc c in
   Term.t_implies at ct
 
-and term_of_apuop (wc : why_context) (u: unop) (ap: attrparam) = 
+and term_of_apuop (wc : why_context) (u: unop) (ap: attrparam) =
   let te = term_of_atterparam wc ap in
   match u with
-    Cil.Neg -> Term.t_app_infer wc.ops.neg_op [te] 
+    Cil.Neg -> Term.t_app_infer wc.ops.neg_op [te]
   | Cil.LNot -> Term.t_equ te (term_of_int 0)
   | _ -> Errormsg.s (Errormsg.error "unop : %a\n" d_attrparam ap)
 
 and term_of_apbop (wc : why_context) (b: binop) (ap1: attrparam) (ap2: attrparam) =
   let te1 = term_of_atterparam wc ap1 in
   let te2 = term_of_atterparam wc ap2 in
-  match b with 
+  match b with
   | PlusA | PlusPI | IndexPI -> Term.t_app_infer wc.ops.iplus_op [te1; te2]
   | Mult -> Term.t_app_infer wc.ops.itimes_op [te1; te2]
   | Div  -> Term.t_app_infer wc.ops.idiv_op   [te1; te2]
@@ -190,7 +194,7 @@ and term_of_index (wc:why_context) (b: attrparam) (i:attrparam) =
   Term.t_app_infer wc.ops.get_op [mt;address]
 
 
-let oldvar_of_ap (wc:why_context) (ap:attrparam) = 
+let oldvar_of_ap (wc:why_context) (ap:attrparam) =
   match ap with
   | ACons(n,[]) -> String.Map.find_exn wc.vars n
   | _ -> Errormsg.s (Errormsg.error "Names only")
@@ -203,7 +207,7 @@ let inv_of_attrs (wc : why_context) (a : attributes)
   | [Attr(_,lc :: li :: rst)] ->
     term_of_atterparam wc lc,
     term_of_atterparam wc li,
-    List.map rst ~f:(oldvar_of_ap wc) 
+    List.map rst ~f:(oldvar_of_ap wc)
   | _ -> Errormsg.s(Errormsg.error "Malformed invariant attribute: %a" d_attrlist a)
 
 
@@ -221,7 +225,7 @@ let iterm_of_bterm (t : Term.term) : Term.term = Term.t_if t (term_of_int 1) (te
 let bterm_of_iterm (t : Term.term) : Term.term = Term.t_neq t (term_of_int 0)
 
 
-let rec term_of_exp (wc : why_context) (e : exp) : Term.term = 
+let rec term_of_exp (wc : why_context) (e : exp) : Term.term =
 
   match e with
   | Const(CInt64(i,_,_))   -> term_of_int (Int64.to_int_exn i)
@@ -245,7 +249,7 @@ and iterm_of_bterm (t : Term.term) : Term.term =(printf "%a" Pretty.print_term t
 
 and bterm_of_iterm (t : Term.term) : Term.term = (printf "%a" Pretty.print_term t); Term.t_neq t (term_of_int 0)
 
-and term_of_uop (wc : why_context) (u : unop) (e : exp) : Term.term = 
+and term_of_uop (wc : why_context) (u : unop) (e : exp) : Term.term =
 
   let te = term_of_exp wc e in
   match u with
@@ -254,7 +258,7 @@ and term_of_uop (wc : why_context) (u : unop) (e : exp) : Term.term =
   | BNot -> Errormsg.s (Errormsg.error "term_of_uop failed: ~%a\n" d_exp e)
 
 
-and term_of_bop (wc : why_context) (b : binop) (e1 : exp) (e2 : exp) : Term.term = 
+and term_of_bop (wc : why_context) (b : binop) (e1 : exp) (e2 : exp) : Term.term =
 
   let te1 = term_of_exp wc e1 in
   let te2 = term_of_exp wc e2 in
@@ -305,10 +309,10 @@ and term_of_loop (wc : why_context) (b : block) : Term.term -> Term.term =
   let ct, li, lvl = inv_of_attrs wc body_block.battrs in
   let lvl' = wc.memory :: lvl in
   (fun t -> t
-            |> Term.t_if ct (bf li)        
-            |> Term.t_implies li           
-            |> Term.t_forall_close lvl' [] 
-            |> Term.t_and li)              
+            |> Term.t_if ct (bf li)
+            |> Term.t_implies li
+            |> Term.t_forall_close lvl' []
+            |> Term.t_and li)
 
 and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
   Log.info "in term_of_inst";
@@ -329,9 +333,9 @@ and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
     String.Map.iter_keys wc.vars ~f:(Log.debug "%s");
     Term.t_let_close ms ume
 
-  | Call(Some(Var vi, NoOffset),expr,exprs,loc) -> 
-    Errormsg.s (Errormsg.error "%s" (string_of_doc (d_exp () expr))) (*here we will assert 
-                                                                       the precondition for each 
+  | Call(Some(Var vi, NoOffset),expr,exprs,loc) ->
+    Errormsg.s (Errormsg.error "%s" (string_of_doc (d_exp () expr))) (*here we will assert
+                                                                       the precondition for each
                                                                        argument*)
 
   (*let cur_term_of_exp = term_of_exp wc in
@@ -364,7 +368,7 @@ let vcgen (wc : why_context) (fd : fundec) (pre : Term.term option) : Term.term 
 
 let name_of_fundec (fd : fundec) = fd.svar.vname
 
-let validateWhyCtxt (w : why_context) (p : Term.term) (fname :string) = 
+let validateWhyCtxt (w : why_context) (p : Term.term) (fname :string) =
 
   Format.printf "@[validate:@ %a@]@." Pretty.print_term p;
   let g = Decl.create_prsymbol (Ident.id_fresh "goal") in
@@ -388,9 +392,9 @@ let checkFunction (wc : why_context) (fname) (fd: fundec) (loc :location) :  Cal
       ~init:String.Map.empty (fd.slocals @ fd.sformals);
   match post_of_function wc fd with
   | None -> None
-  | Some g ->  
+  | Some g ->
     let pre = pre_of_function wc fd in
-    let vc = vcgen wc fd pre g in 
+    let vc = vcgen wc fd pre g in
     Some(validateWhyCtxt wc vc (fname^"."^(Log.name_of_fundec fd)))
 
 (*

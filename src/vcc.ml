@@ -7,7 +7,7 @@ open Why3
 (*let string_of_doc = Pretty.sprint ~width:Int.max_value*)
 
 
-let onlyFunctions (fn : fundec -> location -> Call_provers.prover_result option) (g : global) : unit = 
+let onlyFunctions (fn : fundec -> location -> Call_provers.prover_result option) (g : global) : unit =
 
   match g with
   | GFun(f, loc) -> Log.info "%s" f.svar.vname ; ignore (fn f loc) (* this fun maps over functions*)
@@ -36,20 +36,17 @@ let visit_call_site (f : Cil.file) : unit =
   let vis = new call_visitor in
   ignore (visitCilFile vis f)
 
-
-let prove (f:Cil.file) (fname:string)  =
-  let wc = init_why_context "Alt-Ergo" "1.01" in 
-  let ls = [] in
-  Cil.iterGlobals f (onlyFunctions (checkFunction wc fname))  
-  
-
 let find_functions (f : Cil.file) : function_metadata list =
   let metadata = ref [] in
   let vis = new function_info_visitor metadata in
   ignore (visitCilFile vis f);
   !metadata
 
-
+let prove (f:Cil.file) (fname:string) =
+  let function_data = find_functions f in
+  let wc = init_why_context "Alt-Ergo" "1.01" function_data in
+  let ls = [] in
+  Cil.iterGlobals f (onlyFunctions (checkFunction wc fname))
 
 
 let do_preprocess infile_path =
@@ -123,7 +120,6 @@ let command =
           visit_call_site cil;
           do_cil (preprocessed_path^".notproved") cil;
 
-          let function_data = find_functions cil in
           visitRets cil;
           prove cil ((Option.value_exn infile_path)^".vc");
           eraseAttrs cil;
