@@ -122,11 +122,8 @@ let command =
           (*visit_calls cil;*)
           visit_call_site cil;
           do_cil (preprocessed_path^".notproved") cil;
-(*<<<<<<< HEAD
-=======*)
-          let function_data = find_functions cil in
-(*>>>>>>> origin/kevin_grab_headers*)
 
+          let function_data = find_functions cil in
           visitRets cil;
           prove cil ((Option.value_exn infile_path)^".vc");
           eraseAttrs cil;
