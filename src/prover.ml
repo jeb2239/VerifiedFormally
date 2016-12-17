@@ -12,6 +12,8 @@ open Format
 open Availexpslv
 (*let string_of_doc = Vcc.string_of_doc*)
 
+
+
 let string_of_task t = Format.asprintf "%a" Pretty.print_task t
 
 let sm_find_all (sm : 'a String.Map.t) (sl : string list) : 'a list =
@@ -54,6 +56,7 @@ type why_context = {
   mutable prover : Whyconf.config_prover;
   available_vals : Cil.exp String.Map.t;
 }
+
 
 
 
@@ -298,6 +301,7 @@ and term_of_loop (wc : why_context) (b : block) : Term.term -> Term.term =
   let test, body = List.hd_exn b.bstmts, List.tl_exn b.bstmts in
   let body_block = body |> List.hd_exn |> force_block in
   let bf = term_of_block wc (mkBlock (body_block.bstmts @ (List.tl_exn body))) in
+  (*if we have battrs*)
   let ct, li, lvl = inv_of_attrs wc body_block.battrs in
   let lvl' = wc.memory :: lvl in
   (fun t -> t
@@ -350,30 +354,43 @@ let pre_impl_t (wc : why_context) (fd : fundec) (pre : Term.term option) : Term.
 let vcgen (wc : why_context) (fd : fundec) (pre : Term.term option) : Term.term -> Term.term =
   (fun t -> Term.t_forall_close (vsymbols_of_function wc fd) [] (pre_impl_t wc fd pre t))
 
+let name_of_fundec (fd : fundec) = fd.svar.vname
 
-let validateWhyCtxt (w : why_context) (p : Term.term) (fname :string) : unit = 
+let validateWhyCtxt (w : why_context) (p : Term.term) (fname :string) = 
 
   Format.printf "@[validate:@ %a@]@." Pretty.print_term p;
   let g = Decl.create_prsymbol (Ident.id_fresh "goal") in
   let t = Task.add_prop_decl w.task Decl.Pgoal g p in
   Log.info "%s "(string_of_task t);
   Out_channel.write_all (fname^".why") ~data:(string_of_task t);
-  let res =
+
     Why3.Call_provers.wait_on_call
-      (Why3.Driver.prove_task ~command:w.prover.Why3.Whyconf.command
+      (Why3.Driver.prove_task ~command:w.prover.command
          ~limit:{limit_time=Some(120); limit_mem=None ; limit_steps=None} w.driver t ())
       ()
-  in
-  (*Log.info (Format.asprintf stdout Pretty.print_task w.task);*)
-  Format.printf "@[Prover answers:@ %a@]@.@[%s@]@."
-    Call_provers.print_prover_result res res.Why3.Call_provers.pr_output;
-  ()
   
 
-let processFunction (wc : why_context) (fname) (fd : fundec) (loc : location) : unit =
-  Availexpslv.computeAEs fd;
-  (*Oneret.oneret fd;*)
+  (*Log.info (Format.asprintf stdout Pretty.print_task w.task);*)
+  
+  
 
+let checkFunction (wc : why_context) (fname) (fd: fundec) (loc :location) :  Call_provers.prover_result option =
+  wc.vars <-
+    List.fold_left ~f:(fun m vi -> String.Map.add m ~key:vi.vname ~data:(make_symbol vi.vname))
+      ~init:String.Map.empty (fd.slocals @ fd.sformals);
+  match post_of_function wc fd with
+  | None -> None
+  | Some g ->  
+    let pre = pre_of_function wc fd in
+    let vc = vcgen wc fd pre g in 
+    Some(validateWhyCtxt wc vc (Log.name_of_fundec fd))
+    
+
+
+(*let processFunction (wc : why_context) (fname) (fd : fundec) (loc : location) : unit =
+  (*Availexpslv.computeAEs fd;*)
+  (*Oneret.oneret fd;*)
+  (** return the why_context so we can reuse it *)
   wc.vars <-
     List.fold_left ~f:(fun m vi -> String.Map.add m ~key:vi.vname ~data:(make_symbol vi.vname))
       ~init:String.Map.empty (fd.slocals @ fd.sformals);
@@ -382,4 +399,4 @@ let processFunction (wc : why_context) (fname) (fd : fundec) (loc : location) : 
   | Some g ->
     let pre = pre_of_function wc fd in
     let vc = vcgen wc fd pre g in
-    validateWhyCtxt wc vc fname
+    validateWhyCtxt wc vc (Log.name_of_fundec fd)*)

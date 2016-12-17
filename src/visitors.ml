@@ -3,17 +3,14 @@ open Cil
 open Log
 open Prover
 
-class call_visitor (vnames : string list) = object(self)
+class call_visitor  = object(self)
   inherit nopCilVisitor
   method vinst (i : instr) =
     let _ = match i with
-      | Call(_, Lval(Var(var), _), operand, loc) when List.mem vnames var.vname ->
-        let operand = match operand with
-          | [ o ] -> o
-          | _ -> failwithf "%s: Assertion %s must have exactly one operand" (Log.string_of_doc (Cil.d_loc () loc)) var.vname ()
-        in
-        Log.info "%s: Asserting %s(%s)" (Log.string_of_doc (Cil.d_loc () loc)) var.vname (Log.string_of_doc (Cil.d_exp () operand))
+      | Call(_, Lval(Var(var), _), operand, loc)  -> let operand=List.hd_exn operand  in
+      Log.info "%s: Asserting precondition %s(%s)" (Log.string_of_doc (Cil.d_loc () loc)) var.vname (Log.string_of_doc (Cil.d_exp () operand))
       | _ -> ()
+        
     in
     DoChildren
 end

@@ -1,5 +1,6 @@
 open Core.Std
 open Printf
+open Cil
 
 type log_level = Error | Warn | Info | Debug
 
@@ -56,3 +57,5 @@ let info  fmt = print Info  fmt
 let debug fmt = print Debug fmt
 
 let string_of_doc = Pretty.sprint ~width:Int.max_value
+
+let name_of_fundec (fd : fundec) = fd.svar.vname

@@ -3,12 +3,13 @@ open Cil
 open Log
 open Prover
 open Visitors
-
+open Why3
 (*let string_of_doc = Pretty.sprint ~width:Int.max_value*)
+ 
 
-let onlyFunctions (fn : fundec -> location -> unit) (g : global) : unit = 
+let onlyFunctions (fn : fundec -> location -> Call_provers.prover_result option) (g : global) : unit = 
   match g with
-  | GFun(f, loc) -> fn f loc
+  | GFun(f, loc) -> Log.info "%s" f.svar.vname ; ignore (fn f loc) (* this fun maps over functions*)
   | _ -> ()
 
 let dump (f : Cil.file) : unit =
@@ -30,12 +31,16 @@ let visit_calls (f : Cil.file) : unit =
   let vis = new attr_visitor [] in
   ignore (visitCilFile vis f)
 
+let visit_call_site (f : Cil.file) : unit =
+  let vis = new call_visitor in
+  ignore (visitCilFile vis f)
 
 
 let prove (f:Cil.file) (fname:string)  =
   let wc = init_why_context "Alt-Ergo" "1.01" in 
-  Cil.iterGlobals f (onlyFunctions (processFunction wc fname))  
-
+  let ls = [] in
+  Cil.iterGlobals f (onlyFunctions (checkFunction wc fname))  
+  
 let do_preprocess infile_path =
   Log.debug "entering do_compile";
   let c_raw = (In_channel.read_all "src/cil_compat.h") ^ match infile_path with
@@ -103,9 +108,10 @@ let command =
           Cfg.computeFileCFG cil;
           (*Partial.do_feature_partial cil;*)
           (*Deadcodeelim.dce cil;*)
-
+          (*visit_calls cil;*)
+          visit_call_site cil;
           do_cil (preprocessed_path^".notproved") cil;
-          
+
           visitRets cil;
           prove cil ((Option.value_exn infile_path)^".vc");
           eraseAttrs cil;

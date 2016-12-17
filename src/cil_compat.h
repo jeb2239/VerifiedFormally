@@ -11,6 +11,6 @@
 #define invar(c,i,...) __blockattribute__((invar((c),(i),__VA_ARGS__)))
 #define post(c) __attribute__((post((c))))
 #define pre(c)  __attribute__((pre((c))))
-
+#define refine(c) __attribute__((refine(c)))
 
 #endif // __cil_compat__
