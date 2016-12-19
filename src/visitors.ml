@@ -17,6 +17,8 @@ class call_visitor  = object(self)
     DoChildren
 end
 
+
+
 type function_metadata = {
   mutable fn_prover_result : Call_provers.prover_answer;
   mutable fn_svar : varinfo; (* name, return type, attributes *)
@@ -32,6 +34,7 @@ class function_info_visitor (metadata : function_metadata list ref) = object(sel
       fn_sformals = f.sformals
     } in
     metadata := cur :: !metadata;
+    (*Log.warn "%s" (string_of_doc (d_attr () (List.hd_exn f.svar.vattr)));*)
     SkipChildren
 end
 

@@ -8,7 +8,6 @@ open Why3
 
 
 let onlyFunctions (fn : fundec -> location -> Call_provers.prover_result option) (g : global) : unit =
-
   match g with
   | GFun(f, loc) -> Log.info "%s" f.svar.vname ; ignore (fn f loc) (* this fun maps over functions*)
   | _ -> ()
@@ -37,12 +36,14 @@ let visit_call_site (f : Cil.file) : unit =
   ignore (visitCilFile vis f)
 
 let find_functions (f : Cil.file) : function_metadata list =
+  Log.debug "Just entered findfunctions";
   let metadata = ref [] in
   let vis = new function_info_visitor metadata in
   ignore (visitCilFile vis f);
   !metadata
 
 let prove (f:Cil.file) (fname:string) =
+  Log.warn "in prove";
   let function_data = find_functions f in
   let wc = init_why_context "Alt-Ergo" "1.01" function_data in
   let ls = [] in
@@ -117,10 +118,12 @@ let command =
           (*Partial.do_feature_partial cil;*)
           (*Deadcodeelim.dce cil;*)
           (*visit_calls cil;*)
+          
           visit_call_site cil;
           do_cil (preprocessed_path^".notproved") cil;
 
           visitRets cil;
+          
           prove cil ((Option.value_exn infile_path)^".vc");
           eraseAttrs cil;
           do_cil preprocessed_path cil;

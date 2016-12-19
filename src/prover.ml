@@ -81,7 +81,7 @@ let init_ops (it : Theory.theory) (dt : Theory.theory) (mt: Theory.theory) : why
   }
 
 let init_why_context (p:string) (pv:string) (fdata : Visitors.function_metadata list) =
-
+  Log.debug "just entered why_context";
   let config = Whyconf.read_config None in
   let main = Whyconf.get_main config in
   Whyconf.load_plugins main;
@@ -106,6 +106,7 @@ let init_why_context (p:string) (pv:string) (fdata : Visitors.function_metadata 
   in
   let arr_ts = Theory.ns_find_ts arr_theory.Theory.th_export ["map"] in
   let int_arr_t = Why3.Ty.ty_app arr_ts [Why3.Ty.ty_int; Why3.Ty.ty_int] in
+  Log.debug "In why init";
   {
     env = env; task=task; prover = prover; driver=driver;
     ops = init_ops int_theory div_theory arr_theory;
@@ -220,6 +221,11 @@ let cond_of_function (k : string) (wc : why_context) (fd : fundec) : Term.term o
 let post_of_function = cond_of_function "post"
 let pre_of_function  = cond_of_function "pre"
 
+let cond_of_function_meta (k:string) (wc:why_context) (fmd:function_metadata) : Term.term option =
+  match filterAttributes k (typeAttrs fmd.fn_svar.vtype) with 
+  | [Attr(_,[ap])] -> Some(term_of_atterparam wc ap)
+  | _ -> None
+
 
 let iterm_of_bterm (t : Term.term) : Term.term = Term.t_if t (term_of_int 1) (term_of_int 0)
 let bterm_of_iterm (t : Term.term) : Term.term = Term.t_neq t (term_of_int 0)
@@ -282,6 +288,8 @@ and term_of_bop (wc : why_context) (b : binop) (e1 : exp) (e2 : exp) : Term.term
 
 
 
+
+
 let rec term_of_stmt (wc : why_context) (s : stmt) : Term.term -> Term.term =
 
 
@@ -318,7 +326,7 @@ and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
   Log.info "in term_of_inst";
   match i with
   | Set((Var vi, NoOffset), e, loc) ->
-
+    Log.debug_string (string_of_task wc.task);
     let te = term_of_exp wc e in
     Log.info "%s" (string_of_doc  (d_exp () e));
     let vs = String.Map.find_exn wc.vars vi.vname in
@@ -334,13 +342,26 @@ and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
     Term.t_let_close ms ume
 
   | Call(Some(Var vi, NoOffset),expr,exprs,loc) ->
-    Errormsg.s (Errormsg.error "%s" (string_of_doc (d_exp () expr))) (*here we will assert
-                                                                       the precondition for each
-                                                                       argument*)
+    
+    Log.debug_string (string_of_task wc.task);
+    Log.debug "%s" (string_of_doc (d_exp () expr));
+    Log.debug "%d" (List.length wc.function_data);
+    
+    let calldata=List.find_exn wc.function_data
+        ~f:(fun x -> x.fn_svar.vname = string_of_doc (d_exp () expr)) in
+    
+    let t_cond=cond_of_function_meta "pre" wc calldata in 
+    Log.debug "post t_cond";
+    Log.debug "we make it this far-----------";
+    (*what term to generate*)
+    (*split functions into multiple goals*)
+    (*when we hit a function call, we quit and call it a goal*)
+    Term.t_implies (Option.value_exn t_cond)
+    
 
-  (*let cur_term_of_exp = term_of_exp wc in
-    let te = term_of_exp wc expr in
-    let tme = List.map exprs ~f:cur_term_of_exp in*)
+    (*let cur_term_of_exp = term_of_exp wc in
+      let te = term_of_exp wc expr in
+      let tme = List.map exprs ~f:cur_term_of_exp in*)
 
   | _ -> Errormsg.s (Errormsg.error "term_of_inst: We can only handle assignment")
 
@@ -367,6 +388,8 @@ let vcgen (wc : why_context) (fd : fundec) (pre : Term.term option) : Term.term 
   (fun t -> Term.t_forall_close (vsymbols_of_function wc fd) [] (pre_impl_t wc fd pre t))
 
 let name_of_fundec (fd : fundec) = fd.svar.vname
+
+
 
 let validateWhyCtxt (w : why_context) (p : Term.term) (fname :string) =
 

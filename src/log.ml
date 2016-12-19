@@ -55,6 +55,7 @@ let error fmt = print Error fmt
 let warn  fmt = print Warn  fmt
 let info  fmt = print Info  fmt
 let debug fmt = print Debug fmt
+let debug_string = debug "%s"
 
 let string_of_doc = Pretty.sprint ~width:Int.max_value
 

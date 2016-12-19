@@ -13,7 +13,7 @@ void (pre(n > 0)
       arr_init)(int *a, int n)
 {
   int i;
-
+  i=conditions(x);
   for (i = 0; i < n; i++)
   { invar(i != n,
               i >= 0 && i <= n && forall(j, implies(j>=0 && j<i, *(a+j) == 4)),
