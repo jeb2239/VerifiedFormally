@@ -28,6 +28,8 @@ type function_metadata = {
 class function_info_visitor (metadata : function_metadata list ref) = object(self)
   inherit nopCilVisitor
   method vfunc (f : fundec) =
+  Log.warn "in function info visitor";
+  List.iter f.sformals ~f:(fun x -> Log.debug "%s------" x.vname);
     let cur = {
       fn_prover_result = Unknown("dummy", None);
       fn_svar = f.svar;

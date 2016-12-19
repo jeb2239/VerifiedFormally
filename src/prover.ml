@@ -17,6 +17,7 @@ open Visitors
 
 
 let string_of_task t = Format.asprintf "%a" Pretty.print_task t
+let string_of_term p = Format.asprintf "%a" Pretty.print_term p
 
 let sm_find_all (sm : 'a String.Map.t) (sl : string list) : 'a list =
   List.map sl ~f:(fun s -> String.Map.find_exn sm s)
@@ -129,7 +130,7 @@ let freshvar_of_ap (ap : attrparam) : string * Term.vsymbol =
 let rec term_of_atterparam (wc:why_context) (ap: Cil.attrparam) =
   match ap with
     AInt(i) -> term_of_int i
-  | ACons(n,[]) -> Term.t_var (String.Map.find_exn wc.vars n)
+  | ACons(n,[]) -> Log.warn "This may raise"; Term.t_var (String.Map.find_exn wc.vars n)
   | ACons("forall", apl) -> term_of_forall wc apl
   | ACons("implies", [a ; b]) -> term_of_implies wc a b
   | AUnOp(uo,ap) -> term_of_apuop wc uo ap
@@ -222,8 +223,13 @@ let post_of_function = cond_of_function "post"
 let pre_of_function  = cond_of_function "pre"
 
 let cond_of_function_meta (k:string) (wc:why_context) (fmd:function_metadata) : Term.term option =
+  Log.warn "in cond_of_function_meta";
+  wc.vars <-
+  List.fold_left ~f:(fun m vi -> String.Map.add m ~key:vi.vname ~data:(make_symbol vi.vname))
+      ~init:wc.vars (fmd.fn_sformals); (* bring inner pre condition in scope *)
+   (*fmd.fn_sformals *)
   match filterAttributes k (typeAttrs fmd.fn_svar.vtype) with 
-  | [Attr(_,[ap])] -> Some(term_of_atterparam wc ap)
+  |  [Attr(_,[ap])] -> Log.warn "Some Attr"; Some(term_of_atterparam wc ap)
   | _ -> None
 
 
@@ -290,6 +296,7 @@ and term_of_bop (wc : why_context) (b : binop) (e1 : exp) (e2 : exp) : Term.term
 
 
 
+
 let rec term_of_stmt (wc : why_context) (s : stmt) : Term.term -> Term.term =
 
 
@@ -322,11 +329,32 @@ and term_of_loop (wc : why_context) (b : block) : Term.term -> Term.term =
             |> Term.t_forall_close lvl' []
             |> Term.t_and li)
 
+and set_formals (wc:why_context) (sformals:Cil.varinfo list) (exp:Cil.exp list): Term.term -> Term.term = 
+  Log.debug "in set_formals";
+  assert ((List.length sformals) = (List.length exp));
+  let assignment_pairs = List.zip_exn sformals exp in
+  let let_bindings : (Term.term-> Term.term ) list =
+  List.map assignment_pairs ~f:(fun (formal,e) -> set_variables wc formal e) in
+  (*why does core fold right not work*)
+  Core.Caml.List.fold_right (fun x y-> (x y)) let_bindings
+
+  (*List.fold let_bindings ~f:(fun a b -> (a b)) ~init:*)
+  (*let hd = List.hd_exn let_bindings in
+  List.fold (List.tl_exn let_bindings) ~init:hd ~f:(fun x y -> (x y))*)
+
+and set_variables (wc:why_context) (vi:Cil.varinfo) (exp:exp) :Term.term -> Term.term =
+  let te = term_of_exp wc exp in 
+  Log.info "This is the exp in set_variable %s" (string_of_doc (d_exp () exp));
+  let vs = String.Map.find_exn wc.vars vi.vname in
+    String.Map.iter_keys wc.vars ~f:(Log.warn "%s");
+    Term.t_let_close vs te 
+
+
 and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
   Log.info "in term_of_inst";
   match i with
   | Set((Var vi, NoOffset), e, loc) ->
-    Log.debug_string (string_of_task wc.task);
+    (*Log.debug "%s" (string_of_task wc.task);*)
     let te = term_of_exp wc e in
     Log.info "%s" (string_of_doc  (d_exp () e));
     let vs = String.Map.find_exn wc.vars vi.vname in
@@ -342,22 +370,31 @@ and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
     Term.t_let_close ms ume
 
   | Call(Some(Var vi, NoOffset),expr,exprs,loc) ->
-    
-    Log.debug_string (string_of_task wc.task);
+
+    (*Log.debug "%s" (string_of_task wc.task);*)
     Log.debug "%s" (string_of_doc (d_exp () expr));
     Log.debug "%d" (List.length wc.function_data);
-    
+    Log.warn "right before calldata";
     let calldata=List.find_exn wc.function_data
-        ~f:(fun x -> x.fn_svar.vname = string_of_doc (d_exp () expr)) in
-    
-    let t_cond=cond_of_function_meta "pre" wc calldata in 
+        ~f:(fun x -> 
+            Log.debug "%s" x.fn_svar.vname;
+            x.fn_svar.vname = string_of_doc (d_exp () expr)) in
+    Log.warn "after calldata";
+    List.iter calldata.fn_sformals ~f:(fun x -> Log.debug "%s" x.vname);
+    Log.warn "before inner pre";
+    let inner_pre=cond_of_function_meta "pre" wc calldata in
+    let inner_post=cond_of_function_meta "post" wc calldata in
     Log.debug "post t_cond";
     Log.debug "we make it this far-----------";
+    Log.debug "%s" (string_of_term (Option.value_exn ~message:"no inner_pre" inner_pre));
+    set_formals wc calldata.fn_sformals exprs
+    
+    (*failwith "Over";*)
     (*what term to generate*)
     (*split functions into multiple goals*)
     (*when we hit a function call, we quit and call it a goal*)
-    Term.t_implies (Option.value_exn t_cond)
-    
+
+
 
     (*let cur_term_of_exp = term_of_exp wc in
       let te = term_of_exp wc expr in
@@ -368,7 +405,7 @@ and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
 and term_of_block (wc : why_context) (b : block) : Term.term -> Term.term =
   Core.Caml.List.fold_right (term_of_stmt wc) b.bstmts
 
-
+ 
 
 let vsymbols_of_function (wc : why_context) (fd : fundec) : Term.vsymbol list =
   fd.sformals

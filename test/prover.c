@@ -1,31 +1,31 @@
 
-int 
-(pre(n==0)
-post(n==0)
-inner)(int n)
+int(pre(n_inner == 0)
+        post(n_inner == 0)
+            inner)(int n_inner)
 {
- return n; 
+  return n_inner;
 }
 
-
-
-int (pre(n == 0)
-      post(n == 0)
-      check)(int n)
+int(pre(n_check == 0)
+        post(n_check == 0)
+            check)(int n_check)
 {
-  int q=3; 
-  int a=inner(0);
-  if(q==4){
-    n=3;
-    
-  } //forces a block idk there should be a better way to do this 
+  // n==0 implies 
+//let q = 3 in let arg_0 = 0 
+  int q = 3;
+  //int arg_0=0; //ghost
   
-  return n; 
+  int a = inner(99);  
+  if (q == 4)
+  {
+    n_check = 3;
+  }
+
+  return n_check;
 }
 
 int main()
 {
 
-  //we need to flow forward data
   return check(0);
 }
