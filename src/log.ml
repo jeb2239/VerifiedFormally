@@ -2,20 +2,23 @@ open Core.Std
 open Printf
 open Cil
 
-type log_level = Error | Warn | Info | Debug
+type log_level = Error | Warn | Info | Debug | Terms
 
 (* For comparing logging levels *)
 let int_of_level = function
   | Error -> 100
   | Warn -> 80
   | Info -> 60
+  | Terms -> 45
   | Debug -> 40
 
 let string_of_level = function
   | Error -> "error"
   | Warn -> "warning"
   | Info -> "info"
+  | Terms -> "terms"
   | Debug -> "debug"
+  
 
 type color = Bold | Reset | Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
 
@@ -24,6 +27,7 @@ let color_of_level = function
   | Warn -> Yellow
   | Info -> Blue
   | Debug -> Cyan
+  | Terms -> Magenta
 
 let string_of_color color = 
   let escape_of_color = function
@@ -55,7 +59,7 @@ let error fmt = print Error fmt
 let warn  fmt = print Warn  fmt
 let info  fmt = print Info  fmt
 let debug fmt = print Debug fmt
-
+let term fmt = print Terms fmt
 
 let string_of_doc = Pretty.sprint ~width:Int.max_value
 

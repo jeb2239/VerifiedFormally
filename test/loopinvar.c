@@ -3,9 +3,6 @@ void (pre(n > 0)
       arr_init)(int *a, int n)
 {
   int i;
-
-  //we should make it so that we can for loop even if there is no invarient
-  
   for (i = 0; i < n; i++)
    { 
    invar(i != n,

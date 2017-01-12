@@ -1,8 +1,4 @@
-(*
-Currently most of this file is from https://www.cs.virginia.edu/~weimer/615/reading/ciltut.pdf
-chapter 11, it will act as a template from which we explore more of what the why3 prover has to offer
-implement some of the exercises at the end of the chapter.
-*)
+
 
 open Cil
 open Core.Std
@@ -58,6 +54,8 @@ type why_context = {
   mutable vars :  Term.vsymbol String.Map.t;
   mutable prover : Whyconf.config_prover;
   mutable function_data : Visitors.function_metadata list;
+  mutable current_fd : Cil.fundec option;
+  mutable current_assumption : Term.term option; (*we update this as we run into internal function calls*)
   available_vals : Cil.exp String.Map.t;
 }
 
@@ -114,6 +112,8 @@ let init_why_context (p:string) (pv:string) (fdata : Visitors.function_metadata 
     memory = Term.create_vsymbol (Why3.Ident.id_fresh "M") int_arr_t;
     vars=String.Map.empty; available_vals = String.Map.empty;
     function_data = fdata;
+    current_fd = None;
+    current_assumption = None;
   }
 
 
@@ -125,6 +125,8 @@ let freshvar_of_ap (ap : attrparam) : string * Term.vsymbol =
   match ap with
     ACons(n,[]) -> n , make_symbol n
   | _ -> Errormsg.s (Errormsg.error "Names only")
+
+
 
 (** this is our mutually recursive function which will decode the attibutes ast*)
 let rec term_of_atterparam (wc:why_context) (ap: Cil.attrparam) =
@@ -225,9 +227,9 @@ let pre_of_function  = cond_of_function "pre"
 let cond_of_function_meta (k:string) (wc:why_context) (fmd:function_metadata) : Term.term option =
   Log.warn "in cond_of_function_meta";
   wc.vars <-
-  List.fold_left ~f:(fun m vi -> String.Map.add m ~key:vi.vname ~data:(make_symbol vi.vname))
+    List.fold_left ~f:(fun m vi -> String.Map.add m ~key:vi.vname ~data:(make_symbol vi.vname))
       ~init:wc.vars (fmd.fn_sformals); (* bring inner pre condition in scope *)
-   (*fmd.fn_sformals *)
+  (*fmd.fn_sformals *)
   match filterAttributes k (typeAttrs fmd.fn_svar.vtype) with 
   |  [Attr(_,[ap])] -> Log.warn "Some Attr"; Some(term_of_atterparam wc ap)
   | _ -> None
@@ -293,13 +295,15 @@ and term_of_bop (wc : why_context) (b : binop) (e1 : exp) (e2 : exp) : Term.term
                        d_exp e1 d_binop b d_exp e2)
 
 
-
+let vsymbols_of_function (wc : why_context) (fd : fundec) : Term.vsymbol list =
+  fd.sformals
+  |> List.map ~f:(fun vi -> vi.vname)
+  |> sm_find_all wc.vars
+  |> List.append [wc.memory]
 
 
 
 let rec term_of_stmt (wc : why_context) (s : stmt) : Term.term -> Term.term =
-
-
   match s.skind with
   | Instr il          -> Core.Caml.List.fold_right (fun i t -> (term_of_inst wc i) t) il
   | If(e,tb,fb,loc)   -> term_of_if wc e tb fb
@@ -334,27 +338,47 @@ and set_formals (wc:why_context) (sformals:Cil.varinfo list) (exp:Cil.exp list):
   assert ((List.length sformals) = (List.length exp));
   let assignment_pairs = List.zip_exn sformals exp in
   let let_bindings : (Term.term-> Term.term ) list =
-  List.map assignment_pairs ~f:(fun (formal,e) -> set_variables wc formal e) in
+    List.map assignment_pairs ~f:(fun (formal,e) -> set_variables wc formal e) in
   (*why does core fold right not work*)
   Core.Caml.List.fold_right (fun x y-> (x y)) let_bindings
 
-  (*List.fold let_bindings ~f:(fun a b -> (a b)) ~init:*)
-  (*let hd = List.hd_exn let_bindings in
+
+(*List.fold let_bindings ~f:(fun a b -> (a b)) ~init:*)
+(*let hd = List.hd_exn let_bindings in
   List.fold (List.tl_exn let_bindings) ~init:hd ~f:(fun x y -> (x y))*)
 
 and set_variables (wc:why_context) (vi:Cil.varinfo) (exp:exp) :Term.term -> Term.term =
   let te = term_of_exp wc exp in 
   Log.info "This is the exp in set_variable %s" (string_of_doc (d_exp () exp));
   let vs = String.Map.find_exn wc.vars vi.vname in
-    String.Map.iter_keys wc.vars ~f:(Log.warn "%s");
-    Term.t_let_close vs te 
+  String.Map.iter_keys wc.vars ~f:(Log.warn "%s");
+  Term.t_let_close vs te
 
+and add_goal (wc:why_context) (pre:Term.term) (vi:Cil.varinfo) (term:Term.term->Term.term) = 
+  String.Map.iter_keys wc.vars ~f:(Log.term "%s");
+  (*|> List.map ~f:(fun vi -> vi.vname)
+    |> sm_find_all wc.vars
+    |> List.append [wc.memory]*)
+  let vc = inline_vcgen wc (Option.value_exn ~message:"no fundec" wc.current_fd) wc.current_assumption pre in
+  Log.term "%s" (string_of_term vc);
+  
+  let g = Decl.create_prsymbol (Ident.id_fresh "goal") in
+  Log.info "Made it this far";
+  let t = Task.add_prop_decl wc.task Decl.Pgoal g pre in
+  Log.info "---made it this far-----";
+  Log.info "%s" (string_of_task t);
+
+  failwith "done"
+
+
+(*and assign_abstract_return (wc:why_context) ()*)
 
 and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
   Log.info "in term_of_inst";
   match i with
   | Set((Var vi, NoOffset), e, loc) ->
     (*Log.debug "%s" (string_of_task wc.task);*)
+    (*Log.term "%s" (string_of_task wc.task);*)
     let te = term_of_exp wc e in
     Log.info "%s" (string_of_doc  (d_exp () e));
     let vs = String.Map.find_exn wc.vars vi.vname in
@@ -370,7 +394,7 @@ and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
     Term.t_let_close ms ume
 
   | Call(Some(Var vi, NoOffset),expr,exprs,loc) ->
-
+    Log.term "%s" vi.vname;
     (*Log.debug "%s" (string_of_task wc.task);*)
     Log.debug "%s" (string_of_doc (d_exp () expr));
     Log.debug "%d" (List.length wc.function_data);
@@ -387,32 +411,34 @@ and term_of_inst (wc : why_context) (i : instr) : Term.term -> Term.term =
     Log.debug "post t_cond";
     Log.debug "we make it this far-----------";
     Log.debug "%s" (string_of_term (Option.value_exn ~message:"no inner_pre" inner_pre));
-    set_formals wc calldata.fn_sformals exprs
-    
-    (*failwith "Over";*)
-    (*what term to generate*)
-    (*split functions into multiple goals*)
-    (*when we hit a function call, we quit and call it a goal*)
+    let term =set_formals wc calldata.fn_sformals exprs in
+    add_goal wc (Option.value_exn ~message:"no inner_pre" inner_pre) vi term
 
 
 
-    (*let cur_term_of_exp = term_of_exp wc in
-      let te = term_of_exp wc expr in
-      let tme = List.map exprs ~f:cur_term_of_exp in*)
+  (*failwith "Over";*)
+  (*what term to generate*)
+  (*split functions into multiple goals*)
+  (*when we hit a function call, we quit and call it a goal*)
+
+
+
+  (*let cur_term_of_exp = term_of_exp wc in
+    let te = term_of_exp wc expr in
+    let tme = List.map exprs ~f:cur_term_of_exp in*)
 
   | _ -> Errormsg.s (Errormsg.error "term_of_inst: We can only handle assignment")
 
 and term_of_block (wc : why_context) (b : block) : Term.term -> Term.term =
   Core.Caml.List.fold_right (term_of_stmt wc) b.bstmts
 
- 
+and inline_vcgen (wc : why_context) (fd : fundec) (pre : Term.term option) : Term.term -> Term.term =
+  (fun t -> Term.t_forall_close (vsymbols_of_function wc fd) [] (inline_pre_impl_t wc fd pre t))
 
-let vsymbols_of_function (wc : why_context) (fd : fundec) : Term.vsymbol list =
-  fd.sformals
-  |> List.map ~f:(fun vi -> vi.vname)
-  |> sm_find_all wc.vars
-  |> List.append [wc.memory]
-
+and inline_pre_impl_t (wc : why_context) (fd : fundec) (pre : Term.term option) : Term.term -> Term.term =
+  match pre with
+  | None -> term_of_block wc fd.sbody
+  | Some pre -> (fun t -> Term.t_implies pre (term_of_block wc fd.sbody t))
 
 let pre_impl_t (wc : why_context) (fd : fundec) (pre : Term.term option) : Term.term -> Term.term =
   match pre with
@@ -420,9 +446,9 @@ let pre_impl_t (wc : why_context) (fd : fundec) (pre : Term.term option) : Term.
   | Some pre -> (fun t -> Term.t_implies pre (term_of_block wc fd.sbody t))
 
 
-
 let vcgen (wc : why_context) (fd : fundec) (pre : Term.term option) : Term.term -> Term.term =
   (fun t -> Term.t_forall_close (vsymbols_of_function wc fd) [] (pre_impl_t wc fd pre t))
+
 
 let name_of_fundec (fd : fundec) = fd.svar.vname
 
@@ -450,6 +476,7 @@ let checkFunction (wc : why_context) (fname) (fd: fundec) (loc :location) :  Cal
   wc.vars <-
     List.fold_left ~f:(fun m vi -> String.Map.add m ~key:vi.vname ~data:(make_symbol vi.vname))
       ~init:String.Map.empty (fd.slocals @ fd.sformals);
+  wc.current_fd <- Some(fd);
   match post_of_function wc fd with
   | None -> None
   | Some g ->
